@@ -4,6 +4,13 @@
 
 这是一个部署到 Cloudflare Pages 的消防设施操作员模拟考试系统。
 
+## 当前工作目录约定
+
+- `E:\zzxf\sync-work\` 是以后唯一正式项目目录。
+- 后续开发、检查、Git 提交、GitHub 推送、Cloudflare 部署，都应在 `E:\zzxf\sync-work\` 中进行。
+- `E:\zzxf\` 上一级目录中的同名 `public/`、`functions/`、`private/`、`tools/` 等只作为临时备份，过渡期不要再作为正式修改位置。
+- 如果误改了 `E:\zzxf\` 上一级目录，必须先同步到 `E:\zzxf\sync-work\` 后才算进入正式版本。
+
 主要能力：
 - 普通用户必须登录后才能使用考试/练习系统。
 - 管理员可进入管理后台维护模拟考试参数、章节/题型抽题权重、题型分值和注册账号。
@@ -55,9 +62,9 @@
   - 页面二维码/图片资源。
 
 - `sync-work/`
-  - 之前为绕开根目录 Git 权限问题创建的 Git 同步副本。
+  - 当前唯一正式项目目录。
   - 已配置远程 `https://github.com/fkxbz/zzxf.git`。
-  - 根目录文件与 `sync-work` 中核心文件当前保持一致；如果改了根目录并要推 GitHub，需要同步到这里或直接在此目录修改。
+  - 后续应直接在此目录修改、提交、推送和部署。
 
 ## 关键 API
 
@@ -87,6 +94,8 @@
 更新题库时：
 
 ```powershell
+cd E:\zzxf\sync-work
+
 # 1. 替换 private\题库.xlsx
 # 2. 重新生成受保护题库数据
 python tools\build-question-data.py
@@ -105,6 +114,7 @@ npx wrangler pages deploy public
 常规部署命令：
 
 ```powershell
+cd E:\zzxf\sync-work
 npx wrangler pages deploy public
 ```
 
@@ -113,7 +123,7 @@ Cloudflare Pages 需要：
 - `functions/` 作为 Pages Functions 目录。
 - KV 绑定名为 `EXAM_KV`。
 
-如果本地改动后还要同步 GitHub：
+同步 GitHub：
 
 ```powershell
 cd E:\zzxf\sync-work
@@ -122,7 +132,7 @@ git commit -m "更新说明"
 git push
 ```
 
-如果根目录先改了文件，需要先把对应文件同步到 `sync-work/` 后再提交。
+不要再从 `E:\zzxf\` 上一级目录提交或部署；那里只保留作临时备份。
 
 ## 安全注意事项
 
@@ -138,7 +148,7 @@ git push
 - `functions/api.js` 的异步路由需要 `return await ...`，这样权限错误能被统一 `try/catch` 转成 JSON 响应。
 - 管理页保存考试配置时必须调用后端 `save-settings` action；不要误写成 `settings`，否则会得到 404。
 - `comboKey` 在普通页使用 `chapter|||type`，管理页当前部分逻辑使用 `chapter||type`。修改权重功能时要确认前后端保存的 key 分隔符一致，否则模拟考试可能读不到管理员设置。
-- 根目录不是当前 Git 推送仓库；`sync-work/` 才是已初始化并配置远程的同步副本。
+- `E:\zzxf\sync-work\` 是唯一正式项目目录；上一级 `E:\zzxf\` 只作临时备份。
 
 ## 快速检查
 
