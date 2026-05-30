@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>考试系统管理后台20260530-1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
+        input[type="number"] { -moz-appearance: textfield; }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen text-gray-800">
+<div class="max-w-6xl mx-auto px-4 py-6">
+    <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-900">考试系统管理后台</h1>
+            <p class="text-sm text-gray-500 mt-1">管理员专用：维护账号、模拟考试总分、章节和题型权重。</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="./index.html" class="border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 rounded-xl text-sm font-medium inline-flex items-center transition shadow-sm">返回模拟考试系统</a>
+            <button id="logout-btn" class="hidden border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded-xl text-sm font-medium transition shadow-sm">退出登录</button>
+        </div>
+    </header>
+
+    <main>
+        <div id="login-panel" class="max-w-md mx-auto my-12 bg-white rounded-2xl border border-gray-200 shadow-xl p-6 md:p-8">
+            <h2 class="text-xl font-bold text-gray-900 mb-6 text-center">管理员登录认证</h2>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">账号名称</label>
+                    <input type="text" id="username" required class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-400">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">登录密码</label>
+                    <input type="password" id="password" required class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-400">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-xl transition shadow-md">立即登录后台</button>
+            </form>
+            <div id="login-message" class="hidden"></div>
+        </div>
+
+        <div id="admin-panel" class="hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                    <div class="flex items-center justify-between border-b border-gray-100 pb-4 mb-4">
+                        <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">题型与抽取权重配置</h2>
+                        <div id="bank-status" class="text-sm text-gray-500">题库尚未加载...</div>
+                    </div>
+                    <div class="overflow-x-auto max-h-[500px]">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                    <th class="pb-3 px-3">章节名称</th>
+                                    <th class="pb-3 px-3">题型</th>
+                                    <th class="pb-3 px-3 text-right">总库存</th>
+                                    <th class="pb-3 px-3 text-right w-24">抽取权重</th>
+                                    <th class="pb-3 px-3 text-right w-24">预计题数</th>
+                                </tr>
+                            </thead>
+                            <tbody id="weight-body" class="divide-y divide-gray-50 text-sm"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                        <h2 class="text-lg font-bold text-gray-900 border-b border-gray-100 pb-4 mb-4">模拟试卷基本参数</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">试卷总题目数</label>
+                                <input type="number" id="exam-count" min="1" max="500" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-gray-900 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">考试限时（分钟）</label>
+                                <input type="number" id="exam-minutes" min="1" max="300" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-gray-900 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">试卷满分</label>
+                                    <input type="number" id="total-score" min="1" max="1000" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-gray-900 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">及格线分值</label>
+                                    <input type="number" id="pass-score" min="1" max="1000" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-gray-900 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                </div>
+                            </div>
+                            <div id="type-score-list" class="pt-2 border-t border-gray-50 space-y-2.5"></div>
+                            <div class="pt-4 border-t border-gray-100 bg-gray-50/50 p-3 rounded-xl space-y-1 text-sm text-gray-600">
+                                <div class="flex justify-between"><span>当前分配总题数:</span><span id="paper-count" class="font-bold text-gray-900">0</span></div>
+                                <div class="flex justify-between"><span>对应累加总分值:</span><span id="paper-score" class="font-bold text-blue-600">0</span></div>
+                            </div>
+                            <div class="pt-2 flex gap-3">
+                                <button id="save-settings-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2.5 rounded-xl transition shadow-sm">保存考试配置</button>
+                                <button id="reset-btn" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 text-sm font-medium px-3 rounded-xl transition shadow-sm" title="重置权重为按库存默认分配">恢复默认</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                <div class="flex items-center justify-between border-b border-gray-100 pb-4 mb-4">
+                    <h2 class="text-lg font-bold text-gray-900">注册学员账号管理</h2>
+                    <button id="refresh-users-btn" class="text-sm font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">刷新用户列表</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                <th class="pb-3">登录账号 (手机号/账户)</th>
+                                <th class="pb-3">学员姓名</th>
+                                <th class="pb-3">身份角色</th>
+                                <th class="pb-3">注册时间</th>
+                                <th class="pb-3 text-right">操作行为</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-body" class="divide-y divide-gray-50"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    const TOKEN_KEY = 'exam-system:token';
+    const DEFAULT_TYPE_SCORES = { '单选': 0.5, '多选': 0.5, '判断': 0.5 };
+
+    let currentUser = null;
+    let allQuestions = [];
+    let settings = { 
+        examCount: 200, 
+        examMinutes: 90, 
+        totalScore: 100, 
+        passScore: 60, 
+        combos: {}, 
+        typeScores: { ...DEFAULT_TYPE_SCORES } 
+    };
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        document.getElementById('login-form').addEventListener('submit', handleLogin);
+        document.getElementById('logout-btn').addEventListener('click', logout);
+        document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
+        document.getElementById('reset-btn').addEventListener('click', resetWeights);
+        document.getElementById('refresh-users-btn').addEventListener('click', loadUsers);
+        ['exam-count', 'exam-minutes', 'total-score', 'pass-score'].forEach(id => {
+            document.getElementById(id).addEventListener('input', refreshSummary);
+        });
+        await restoreAdmin();
+    });
+
+    async function apiRequest(action, options = {}) {
+        const token = localStorage.getItem(TOKEN_KEY);
+        const headers = { ...(options.headers || {}) };
+        if (token) headers.Authorization = `Bearer ${token}`;
+        if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+
+        const response = await fetch(`/api?action=${encodeURIComponent(action)}`, {
+            method: options.method || 'GET',
+            headers,
+            body: options.body === undefined ? undefined : JSON.stringify(options.body)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || '请求失败');
+        return data;
+    }
+
+    async function restoreAdmin() {
+        if (!localStorage.getItem(TOKEN_KEY)) return;
+        try {
+            const data = await apiRequest('me');
+            if (data.user && data.user.role === 'admin') {
+                currentUser = data.user;
+                showAdminPanel();
+            } else {
+                localStorage.removeItem(TOKEN_KEY);
+            }
+        } catch (err) {
+            localStorage.removeItem(TOKEN_KEY);
+        }
+    }
+
+    function showAdminPanel() {
+        document.getElementById('login-panel').classList.add('hidden');
+        document.getElementById('admin-panel').classList.remove('hidden');
+        document.getElementById('logout-btn').classList.remove('hidden');
+        loadSettingsAndBank();
+        loadUsers();
+    }
+
+    async function handleLogin(e) {
+        e.preventDefault();
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+
+        try {
+            const data = await apiRequest('login', {
+                method: 'POST',
+                body: { username, password }
+            });
+            if (data.user && data.user.role === 'admin') {
+                localStorage.setItem(TOKEN_KEY, data.token);
+                currentUser = data.user;
+                showAdminPanel();
+            } else {
+                showLoginMessage('该账号没有管理员权限。', 'bg-red-100 text-red-700');
+            }
+        } catch (err) {
+            showLoginMessage(err.message || '登录失败', 'bg-red-100 text-red-700');
+        }
+    }
+
+    function showLoginMessage(msg, cls) {
+        const el = document.getElementById('login-message');
+        el.innerText = msg;
+        el.className = `p-3 text-sm rounded-lg mt-3 ${cls}`;
+        el.classList.remove('hidden');
+    }
+
+    function logout() {
+        localStorage.removeItem(TOKEN_KEY);
+        window.location.reload();
+    }
+
+   
+async function loadSettingsAndBank() {
+        const statusEl = document.getElementById('bank-status');
+        try {
+            statusEl.innerText = '正在读取系统配置...';
+            const data = await apiRequest('settings');
+            if (data.settings) {
+                settings = {
+                    examCount: data.settings.examCount || 200,
+                    examMinutes: data.settings.examMinutes || 90,
+                    totalScore: data.settings.totalScore || 100,
+                    passScore: data.settings.passScore || 60,
+                    combos: data.settings.combos || {},
+                    typeScores: { ...DEFAULT_TYPE_SCORES, ...(data.settings.typeScores || {}) }
+                };
+            }
+
+            document.getElementById('exam-count').value = settings.examCount;
+            document.getElementById('exam-minutes').value = settings.examMinutes;
+            document.getElementById('total-score').value = settings.totalScore;
+            document.getElementById('pass-score').value = settings.passScore;
+
+            // 核心修改：完全同步 index.html 的加密/受保护 API 请求方式
+            statusEl.innerText = '正在远程下载题库数据...';
+            const dataBank = await apiRequest('questions'); 
+            
+            // 传入 dataBank，内部会自动处理 dataBank.questions
+            parseQuestionBank(dataBank);
+        } catch (err) {
+            statusEl.innerText = `错误: ${err.message}`;
+            statusEl.className = 'text-sm text-red-500 mt-1';
+        }
+    }
+
+    function parseQuestionBank(jsonData) {
+        // 同步 index.html 的解包逻辑：优先取 data.questions，如果已经是数组则直接用
+        const questionsArray = jsonData && jsonData.questions ? jsonData.questions : (Array.isArray(jsonData) ? jsonData : []);
+        
+        allQuestions = questionsArray.map((q, index) => {
+            // 处理对象格式的 options 转化为平铺数组
+            let rawOptions = [];
+            if (q.options && typeof q.options === 'object' && !Array.isArray(q.options)) {
+                rawOptions = Object.keys(q.options)
+                    .sort() // 确保 A-Z 顺序
+                    .map(key => q.options[key] ? String(q.options[key]).trim() : '')
+                    .filter(o => o !== '');
+            } else if (Array.isArray(q.options)) {
+                rawOptions = q.options.map(o => String(o).trim()).filter(o => o !== '');
+            }
+
+            const qType = q.type?.trim() || '单选';
+            if (qType === '判断' && rawOptions.length === 0) {
+                rawOptions = ['对', '错'];
+            }
+
+            return {
+                chapter: q.chapter?.trim() || '未分类',
+                id: q.id?.trim() || `Q_${index}`,
+                type: qType,
+                stem: q.stem?.trim() || '',
+                options: rawOptions,
+                answer: q.answer?.trim() || ''
+            };
+        });
+
+        document.getElementById('bank-status').innerText = `题库加载成功，共加载 ${allQuestions.length} 道题目。`;
+        document.getElementById('bank-status').className = 'text-sm text-green-600 mt-1';
+        renderWeightGrid();
+    }
+
+    function parseCsvLine(text) {
+        let p = '', c = '', r = [];
+        let q = false;
+        for (let i = 0; i < text.length; i++) {
+            c = text[i];
+            if (c === '"') { q = !q; }
+            else if (c === ',' && !q) { r.push(p); p = ''; }
+            else { p += c; }
+        }
+        r.push(p);
+        return r;
+    }
+
+    function renderWeightGrid() {
+        const counts = {};
+        allQuestions.forEach(q => {
+            const key = `${q.chapter}||${q.type}`;
+            counts[key] = (counts[key] || 0) + 1;
+        });
+
+        const body = document.getElementById('weight-body');
+        body.innerHTML = '';
+
+        const uniqueCombos = [];
+        allQuestions.forEach(q => {
+            const exists = uniqueCombos.some(c => c.chapter === q.chapter && c.type === q.type);
+            if (!exists) uniqueCombos.push({ chapter: q.chapter, type: q.type });
+        });
+
+        uniqueCombos.sort((a, b) => a.chapter.localeCompare(b.chapter) || a.type.localeCompare(b.type));
+
+        uniqueCombos.forEach(combo => {
+            const comboKey = `${combo.chapter}||${combo.type}`;
+            const stock = counts[comboKey] || 0;
+            const savedWeight = settings.combos[comboKey] !== undefined ? settings.combos[comboKey] : stock;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="py-2.5 px-3 text-gray-700 font-medium">${escapeHtml(combo.chapter)}</td>
+                <td class="py-2.5 px-3 text-gray-500">${escapeHtml(combo.type)}</td>
+                <td class="py-2.5 px-3 text-right text-gray-900 font-semibold">${stock}</td>
+                <td class="py-2.5 px-3 text-right">
+                    <input type="number" min="0" max="10000" value="${savedWeight}" data-key="${comboKey}" class="weight-input w-20 text-right border border-gray-200 rounded p-1 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                </td>
+                <td class="py-2.5 px-3 text-right text-blue-600 font-bold calc-count" data-key="${comboKey}" data-stock="${stock}">0</td>
+            `;
+            body.appendChild(tr);
+        });
+
+        document.querySelectorAll('.weight-input').forEach(input => {
+            input.addEventListener('input', refreshSummary);
+        });
+
+        renderTypeScoreInputs();
+        refreshSummary();
+    }
+
+    function renderTypeScoreInputs() {
+        const list = document.getElementById('type-score-list');
+        list.innerHTML = '';
+        const types = ['单选', '多选', '判断'];
+        types.forEach(t => {
+            const score = settings.typeScores[t] || 0.5;
+            const div = document.createElement('div');
+            div.className = 'flex items-center justify-between text-sm';
+            div.innerHTML = `
+                <span class="text-gray-600">${t}每题分值</span>
+                <input type="number" step="0.1" min="0" max="100" value="${score}" data-type="${t}" class="type-score-input w-20 text-right border border-gray-200 rounded p-1 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            `;
+            list.appendChild(div);
+        });
+
+        document.querySelectorAll('.type-score-input').forEach(input => {
+            input.addEventListener('input', refreshSummary);
+        });
+    }
+
+    function refreshSummary() {
+        const totalExamCount = clamp(parseInt(document.getElementById('exam-count').value) || 0, 1, 10000);
+        
+        let totalWeight = 0;
+        const inputs = document.querySelectorAll('.weight-input');
+        inputs.forEach(input => {
+            totalWeight += clamp(parseInt(input.value) || 0, 0, 10000);
+        });
+
+        let allocatedCount = 0;
+        let expectedTotalScore = 0;
+
+        const scoreMap = {};
+        document.querySelectorAll('.type-score-input').forEach(input => {
+            scoreMap[input.dataset.type] = clamp(parseFloat(input.value) || 0, 0, 100);
+        });
+
+        const calcs = document.querySelectorAll('.calc-count');
+        calcs.forEach((cell, idx) => {
+            const key = cell.dataset.key;
+            const stock = parseInt(cell.dataset.stock) || 0;
+            const input = document.querySelector(`.weight-input[data-key="${cssEscape(key)}"]`);
+            const weight = input ? clamp(parseInt(input.value) || 0, 0, 10000) : 0;
+            const type = key.split('||')[1];
+            const perScore = scoreMap[type] || 0.5;
+
+            let count = 0;
+            if (totalWeight > 0) {
+                count = Math.min(stock, Math.round((weight / totalWeight) * totalExamCount));
+            }
+            
+            if (idx === calcs.length - 1 && totalWeight > 0) {
+                const currentShortage = totalExamCount - (allocatedCount + count);
+                if (currentShortage !== 0 && (count + currentShortage) <= stock && (count + currentShortage) >= 0) {
+                    count += currentShortage;
+                }
+            }
+
+            allocatedCount += count;
+            expectedTotalScore += count * perScore;
+            cell.innerText = count;
+        });
+
+        document.getElementById('paper-count').innerText = allocatedCount;
+        document.getElementById('paper-score').innerText = formatScore(expectedTotalScore);
+    }
+
+    async function saveSettings() {
+        const btn = document.getElementById('save-settings-btn');
+        btn.disabled = true;
+        btn.innerText = '正在保存...';
+
+        try {
+            const combos = {};
+            document.querySelectorAll('.weight-input').forEach(input => {
+                combos[input.dataset.key] = clamp(parseInt(input.value) || 0, 0, 10000);
+            });
+
+            const typeScores = {};
+            document.querySelectorAll('.type-score-input').forEach(input => {
+                typeScores[input.dataset.type] = clamp(parseFloat(input.value) || 0, 0, 100);
+            });
+
+            const body = {
+                examCount: clamp(parseInt(document.getElementById('exam-count').value) || 200, 1, 500),
+                examMinutes: clamp(parseInt(document.getElementById('exam-minutes').value) || 90, 1, 300),
+                totalScore: clamp(parseInt(document.getElementById('total-score').value) || 100, 1, 1000),
+                passScore: clamp(parseInt(document.getElementById('pass-score').value) || 60, 1, 1000),
+                combos,
+                typeScores
+            };
+
+            await apiRequest('settings', { method: 'POST', body });
+            alert('模拟考试参数及权重配置成功保存至 KV 数据库！');
+        } catch (err) {
+            alert(err.message || '保存失败。');
+        } finally {
+            btn.disabled = false;
+            btn.innerText = '保存考试配置';
+        }
+    }
+
+    function resetWeights() {
+        if (!confirm('确定要恢复到默认权重设置（按库存分配）吗？')) return;
+        document.querySelectorAll('.calc-count').forEach(cell => {
+            const key = cell.dataset.key;
+            const stock = cell.dataset.stock;
+            const input = document.querySelector(`.weight-input[data-key="${cssEscape(key)}"]`);
+            if (input) input.value = stock;
+        });
+        refreshSummary();
+    }
+
+    async function loadUsers() {
+        const body = document.getElementById('users-body');
+        body.innerHTML = '<tr><td class="py-4 text-center text-gray-400" colspan="5">加载用户列表中...</td></tr>';
+        try {
+            const data = await apiRequest('users');
+            body.innerHTML = '';
+            if (!data.users || data.users.length === 0) {
+                body.innerHTML = '<tr><td class="py-4 text-center text-gray-400" colspan="5">暂无普通注册用户账号</td></tr>';
+                return;
+            }
+            data.users.forEach(user => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="py-3 font-medium text-gray-900">${escapeHtml(user.username)}</td>
+                    <td class="py-3 text-gray-600">${escapeHtml(user.displayName || '未设置')}</td>
+                    <td class="py-3">
+                        <span class="px-2 py-1 text-xs rounded font-semibold ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}">${user.role === 'admin' ? '管理员' : '普通学员'}</span>
+                    </td>
+                    <td class="py-3 text-gray-400 text-xs">${formatDate(user.createdAt)}</td>
+                    <td class="py-3 text-right">
+                        <button data-username="${escapeHtml(user.username)}" class="delete-user-btn text-red-600 hover:text-red-900 font-medium disabled:opacity-30" ${user.role === 'admin' ? 'disabled' : ''}>删除</button>
+                    </td>
+                `;
+                body.appendChild(tr);
+            });
+            document.querySelectorAll('.delete-user-btn').forEach(btn => {
+                btn.addEventListener('click', deleteUser);
+            });
+        } catch (err) {
+            body.innerHTML = `<tr><td class="py-4 text-center text-red-500" colspan="5">${escapeHtml(err.message || '账号加载失败')}</td></tr>`;
+        }
+    }
+
+    async function deleteUser(event) {
+        const username = event.currentTarget.dataset.username;
+        if (!confirm(`确定删除账号 ${username} 吗？`)) return;
+        try {
+            await apiRequest('delete-user', { method: 'POST', body: { username } });
+            await loadUsers();
+        } catch (err) {
+            alert(err.message || '删除失败。');
+        }
+    }
+
+    function clamp(value, min, max) {
+        if (!Number.isFinite(value)) return min;
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function formatScore(value) {
+        const num = Number(value || 0);
+        return Number.isInteger(num) ? String(num) : num.toFixed(1);
+    }
+
+    function formatDate(value) {
+        if (!value) return '';
+        return new Date(value).toLocaleString('zh-CN', { hour12: false });
+    }
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, ch => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[ch]));
+    }
+
+    function cssEscape(value) {
+        if (typeof CSS !== 'undefined' && CSS.escape) {
+            return CSS.escape(value);
+        }
+        return String(value).replace(/([!"#$%&'()*+,.\/:;<=>?@\[\\\]^`{|}~])/g, '\\$1');
+    }
+</script>
+</body>
+</html>

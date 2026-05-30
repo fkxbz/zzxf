@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>消防设施操作员模拟考试系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
+        input[type="number"] { -moz-appearance: textfield; }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    </style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen text-gray-800">
+
+<div id="app" class="max-w-5xl mx-auto px-4 py-6 md:py-8">
+    <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-blue-700 md:text-3xl tracking-tight">🧯中级消控证模拟考试系统</h1>
+            <p class="text-sm text-gray-500 mt-2">📌 基于Codex制作,⚡ Cloudflare  提供极致响应。需要调整权重与分值请与管理员联系</p>
+        </div>
+        <div id="user-bar" class="hidden bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm shadow-sm">
+            <div class="text-gray-500">当前用户</div>
+            <div class="flex items-center gap-3">
+                <span id="current-user-name" class="font-semibold text-gray-800"></span>
+                <a id="admin-link" href="./admin.html" class="hidden text-emerald-600 hover:text-emerald-700 font-medium">管理后台</a>
+                <button id="logout-btn" class="text-blue-600 hover:text-blue-700 font-medium">退出</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="space-y-6">
+        <section id="auth-panel" class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+            <div class="max-w-md mx-auto space-y-5">
+                <div class="text-center">
+                    <h2 class="text-xl font-bold text-gray-800">账号登录</h2>
+                    <p class="text-sm text-gray-500 mt-1">请先登录后使用考试系统。</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 bg-gray-100 rounded-lg p-1">
+                    <button id="login-tab" class="auth-tab bg-white text-blue-700 shadow-sm rounded-md py-2 text-sm font-semibold">登录</button>
+                    <button id="register-tab" class="auth-tab text-gray-600 rounded-md py-2 text-sm font-semibold">免费注册</button>
+                </div>
+
+                <form id="auth-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2" for="auth-username">用户名</label>
+                        <input id="auth-username" autocomplete="username" class="w-full border border-gray-200 rounded-lg p-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="请输入用户名">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2" for="auth-password">密码</label>
+                        <input id="auth-password" type="password" autocomplete="current-password" class="w-full border border-gray-200 rounded-lg p-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="请输入密码">
+                    </div>
+                    <div id="register-extra" class="hidden">
+                        <label class="block text-sm font-medium text-gray-600 mb-2" for="auth-display-name">昵称</label>
+                        <input id="auth-display-name" autocomplete="name" class="w-full border border-gray-200 rounded-lg p-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="用于成绩记录显示">
+                    </div>
+                    <button id="auth-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition shadow-sm" type="submit">登录</button>
+                    <p id="auth-message" class="hidden text-sm rounded-lg px-3 py-2"></p>
+                </form>
+            </div>
+        </section>
+
+        <section id="setup-panel" class="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-6 hidden">
+            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between border-b border-gray-100 pb-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-800">开始练习</h2>
+                    <p id="question-source-status" class="text-sm text-gray-500 mt-1">题库加载中...</p>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div class="bg-blue-50 rounded-lg px-3 py-2">
+                        <div id="stat-question-count" class="font-bold text-blue-700 text-base">0</div>
+                        <div class="text-gray-500">题目</div>
+                    </div>
+                    <div class="bg-emerald-50 rounded-lg px-3 py-2">
+                        <div id="stat-chapter-count" class="font-bold text-emerald-700 text-base">0</div>
+                        <div class="text-gray-500">章节</div>
+                    </div>
+                    <div class="bg-orange-50 rounded-lg px-3 py-2">
+                        <div id="stat-type-count" class="font-bold text-orange-700 text-base">0</div>
+                        <div class="text-gray-500">题型</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid gap-5 md:grid-cols-[1fr_1fr]">
+                <div id="chapter-select-container">
+                    <label class="block text-sm font-medium text-gray-600 mb-2" for="chapter-select">选择章节</label>
+                    <select id="chapter-select" class="w-full border border-gray-200 rounded-lg p-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                        <option value="ALL">全部章节</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-2">考试参数</label>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <label class="block">
+                            <span class="block text-xs text-gray-500 mb-1">题数</span>
+                            <input id="exam-count" type="number" min="1" max="500" value="200" disabled class="w-full border border-gray-200 rounded-lg p-3 bg-gray-100 text-gray-500">
+                        </label>
+                        <label class="block">
+                            <span class="block text-xs text-gray-500 mb-1">时长/分钟</span>
+                            <input id="exam-minutes" type="number" min="1" max="300" value="90" disabled class="w-full border border-gray-200 rounded-lg p-3 bg-gray-100 text-gray-500">
+                        </label>
+                        <label class="block">
+                            <span class="block text-xs text-gray-500 mb-1">满分</span>
+                            <input id="total-score" type="number" min="1" max="1000" value="100" disabled class="w-full border border-gray-200 rounded-lg p-3 bg-gray-100 text-gray-500">
+                        </label>
+                        <label class="block">
+                            <span class="block text-xs text-gray-500 mb-1">及格分</span>
+                            <input id="pass-score" type="number" min="1" max="1000" value="60" disabled class="w-full border border-gray-200 rounded-lg p-3 bg-gray-100 text-gray-500">
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-600 mb-2">选择模式</label>
+                <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+                    <label class="mode-card border rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition border-blue-500 bg-blue-50" id="mode-practice-label">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="exam-mode" value="practice" checked class="h-4 w-4 text-blue-600">
+                            <span class="font-medium text-gray-700 text-sm">章节练习</span>
+                        </div>
+                        <span class="block text-xs text-gray-400 mt-1">顺序做题 即时对错</span>
+                    </label>
+                    <label class="mode-card border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition" id="mode-random-label">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="exam-mode" value="random" class="h-4 w-4 text-blue-600">
+                            <span class="font-medium text-gray-700 text-sm">随机刷题</span>
+                        </div>
+                        <span class="block text-xs text-gray-400 mt-1">乱序抽题 即时对错</span>
+                    </label>
+                    <label class="mode-card border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition" id="mode-recite-label">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="exam-mode" value="recite" class="h-4 w-4 text-blue-600">
+                            <span class="font-medium text-orange-600 text-sm">背题模式</span>
+                        </div>
+                        <span class="block text-xs text-orange-400 mt-1">直接显隐 快速记忆</span>
+                    </label>
+                    <label class="mode-card border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition" id="mode-exam-label">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="exam-mode" value="exam" class="h-4 w-4 text-blue-600">
+                            <span class="font-medium text-gray-700 text-sm">模拟考试</span>
+                        </div>
+                        <span class="block text-xs text-gray-400 mt-1">按权重抽题 限时交卷</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="weight-panel" class="hidden border border-gray-200 rounded-lg overflow-hidden">
+                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between bg-gray-50 px-4 py-3 border-b border-gray-200">
+                    <div>
+                        <h3 class="font-semibold text-gray-800">出题权重与分值</h3>
+                        <p class="text-xs text-gray-500 mt-1">权重越高，该章节题型组合抽到的题越多；题型分值决定每题得分。</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="reset-weight-btn" class="border border-gray-200 bg-white hover:bg-gray-100 rounded-md px-3 py-2 text-xs font-medium text-gray-600" type="button">恢复默认</button>
+                        <button id="save-weight-btn" class="bg-gray-800 hover:bg-gray-900 rounded-md px-3 py-2 text-xs font-medium text-white" type="button">保存设置</button>
+                    </div>
+                </div>
+
+                <div class="grid gap-4 p-4 md:grid-cols-[1fr_320px]">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="text-xs text-gray-500 border-b">
+                                <tr>
+                                    <th class="text-left font-medium py-2 min-w-[180px]">章节</th>
+                                    <th class="text-left font-medium py-2 min-w-[80px]">题型</th>
+                                    <th class="text-right font-medium py-2 min-w-[70px]">库存</th>
+                                    <th class="text-right font-medium py-2 min-w-[90px]">权重</th>
+                                    <th class="text-right font-medium py-2 min-w-[90px]">预计题数</th>
+                                </tr>
+                            </thead>
+                            <tbody id="weight-table-body" class="divide-y divide-gray-100"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="border border-gray-100 rounded-lg p-3">
+                            <h4 class="text-sm font-semibold text-gray-700 mb-3">题型分值</h4>
+                            <div id="type-score-list" class="space-y-2"></div>
+                        </div>
+                        <div class="border border-blue-100 bg-blue-50 rounded-lg p-3 text-sm text-blue-900">
+                            <div class="flex justify-between">
+                                <span>预计总分</span>
+                                <span id="paper-total-score" class="font-bold">0</span>
+                            </div>
+                            <div class="flex justify-between mt-2">
+                                <span>预计题数</span>
+                                <span id="paper-total-count" class="font-bold">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="start-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-lg transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                题库加载中
+            </button>
+        </section>
+
+        <section id="quiz-panel" class="bg-white border border-gray-200 rounded-lg shadow-sm p-6 hidden space-y-4">
+            <div class="flex flex-col gap-3 md:flex-row md:justify-between md:items-center text-sm text-gray-500 border-b border-gray-100 pb-3">
+                <div class="flex flex-wrap items-center gap-3">
+                    <span>进度: <b id="current-index" class="text-blue-600">1</b> / <b id="total-questions">0</b></span>
+                    <span>本题: <b id="q-score" class="text-gray-800">0</b> 分</span>
+                    <span>已得: <b id="live-score" class="text-green-600">0</b> 分</span>
+                </div>
+                <div id="timer-box" class="hidden text-red-500 font-medium bg-red-50 px-3 py-1 rounded-full">剩余: <span id="timer">90:00</span></div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <span id="q-type-badge" class="bg-blue-100 text-blue-800 text-xs font-semibold px-2 py-1 rounded">单选</span>
+                <span id="q-chapter" class="text-xs text-gray-500">章节</span>
+            </div>
+
+            <div id="q-stem" class="text-base font-semibold text-gray-800 my-4 leading-relaxed">题目加载中...</div>
+            <div id="options-container" class="space-y-3 my-4"></div>
+            <div id="feedback-box" class="p-4 rounded-lg my-4 hidden text-sm"></div>
+
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-3 pt-4 border-t border-gray-100">
+                <div class="flex w-full gap-3">
+                    <button id="prev-btn" class="flex-1 border border-gray-200 hover:bg-gray-50 py-3 rounded-lg text-sm transition font-medium text-gray-600">上一题</button>
+                    <button id="abort-btn" class="flex-1 border border-red-200 text-red-500 hover:bg-red-50 py-3 rounded-lg text-sm transition font-medium">退出</button>
+                    <button id="action-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg text-sm transition font-medium shadow-sm">下一题</button>
+                </div>
+                <button id="submit-exam-btn" class="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg text-sm transition font-medium shadow-sm hidden">提前交卷结算</button>
+            </div>
+        </section>
+
+        <section id="result-panel" class="bg-white border border-gray-200 rounded-lg shadow-sm p-6 hidden">
+            <div class="text-center border-b border-gray-100 pb-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-2">考试结算</h2>
+                <div id="pass-badge" class="inline-block px-4 py-1 rounded-full text-sm font-bold my-2"></div>
+                <div class="text-5xl font-black my-4" id="final-score">0</div>
+                <p id="score-summary" class="text-sm text-gray-500">满分 100 分，60 分及格</p>
+
+                <div class="grid grid-cols-3 gap-3 max-w-lg mx-auto mt-4 text-sm">
+                    <div class="bg-green-50 p-3 rounded-lg border border-green-100 text-gray-700">正确题数<br><span id="correct-count" class="text-green-600 font-bold text-lg">0</span></div>
+                    <div class="bg-red-50 p-3 rounded-lg border border-red-100 text-gray-700">错误题数<br><span id="wrong-count" class="text-red-600 font-bold text-lg">0</span></div>
+                    <div class="bg-blue-50 p-3 rounded-lg border border-blue-100 text-gray-700">已答题数<br><span id="answered-count" class="text-blue-600 font-bold text-lg">0</span></div>
+                </div>
+
+                <button id="back-home-btn" class="mt-6 bg-gray-800 hover:bg-gray-900 text-white px-8 py-3 rounded-lg text-sm transition font-medium shadow-sm">返回系统主页</button>
+            </div>
+
+            <div class="pt-6">
+                <h3 class="text-base font-bold text-gray-700 mb-4 flex flex-col gap-1">
+                    <span>已做题目明细回顾</span>
+                    <span class="text-xs font-normal text-gray-400">绿色为正确，红色为错误，黄色为漏选的标准答案。</span>
+                </h3>
+                <div id="review-list" class="space-y-4 max-h-[600px] overflow-y-auto pr-2 border border-gray-100 rounded-lg p-4 bg-gray-50"></div>
+            </div>
+        </section>
+
+        <section id="qrcode-box" class="bg-emerald-50 border border-emerald-100 p-6 rounded-lg text-center mt-6 hidden">
+            <p class="text-xl font-bold text-green-600 md:text-2xl tracking-tight">感谢使用</p>
+            <div class="max-w-md mx-auto mt-3">
+                <img src="1.jpg" alt="系统二维码" class="w-full h-auto rounded-lg mx-auto shadow-sm max-w-[650px] transition-all">
+            </div>
+        </section>
+    </main>
+
+    <footer class="mt-12 text-center text-xs text-gray-400 space-y-1">
+        <p>© 2026.5.22 phman, all rights reserved.</p>
+    </footer>
+</div>
+
+<script>
+    const DEFAULT_TYPE_SCORES = { '单选': 0.5, '多选': 0.5, '判断': 0.5 };
+    const STORAGE_PREFIX = 'exam-system:';
+
+    let allQuestions = [];
+    let activeQuestions = [];
+    let currentIndex = 0;
+    let mode = 'practice';
+    let currentUser = null;
+    let userAnswers = {};
+    let timerInterval = null;
+    let autoNextTimeout = null;
+    let authMode = 'login';
+    let weightSettings = { combos: {}, typeScores: { ...DEFAULT_TYPE_SCORES } };
+    let paperConfig = { totalScore: 100, passScore: 60, scoreScale: 1 };
+
+    const TOKEN_KEY = `${STORAGE_PREFIX}token`;
+
+    async function apiRequest(action, options = {}) {
+        const token = localStorage.getItem(TOKEN_KEY);
+        const headers = { ...(options.headers || {}) };
+        if (token) headers.Authorization = `Bearer ${token}`;
+        if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+
+        const response = await fetch(`/api?action=${encodeURIComponent(action)}`, {
+            method: options.method || 'GET',
+            headers,
+            body: options.body === undefined ? undefined : JSON.stringify(options.body)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || '请求失败');
+        return data;
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        bindAuthEvents();
+        bindSetupEvents();
+        await restoreSession();
+        if (currentUser) await loadQuestionBank();
+    });
+
+    function bindAuthEvents() {
+        document.getElementById('login-tab').addEventListener('click', () => switchAuthMode('login'));
+        document.getElementById('register-tab').addEventListener('click', () => switchAuthMode('register'));
+        document.getElementById('auth-form').addEventListener('submit', handleAuthSubmit);
+        document.getElementById('logout-btn').addEventListener('click', logout);
+    }
+
+    function bindSetupEvents() {
+        document.querySelectorAll('input[name="exam-mode"]').forEach(radio => {
+            radio.addEventListener('change', handleModeChange);
+        });
+        document.getElementById('start-btn').addEventListener('click', startQuiz);
+        document.getElementById('abort-btn').addEventListener('click', abortQuiz);
+        document.getElementById('submit-exam-btn').addEventListener('click', () => finishQuiz(true));
+        document.getElementById('back-home-btn').addEventListener('click', backHome);
+        document.getElementById('reset-weight-btn').addEventListener('click', resetWeights);
+        document.getElementById('save-weight-btn').addEventListener('click', saveWeights);
+        document.getElementById('exam-count').addEventListener('input', refreshPaperSummary);
+    }
+
+    async function restoreSession() {
+        if (!localStorage.getItem(TOKEN_KEY)) return;
+        try {
+            const data = await apiRequest('me');
+            if (data.user) {
+                currentUser = data.user;
+                showApp();
+            } else {
+                localStorage.removeItem(TOKEN_KEY);
+            }
+        } catch (err) {
+            localStorage.removeItem(TOKEN_KEY);
+        }
+    }
+
+    async function loadExamSettings() {
+        if (!currentUser) return;
+        try {
+            const data = await apiRequest('settings');
+            applyExamSettings(data.settings || {});
+        } catch (err) {
+            console.error('考试配置加载失败:', err);
+        }
+    }
+
+    function applyExamSettings(settings) {
+        document.getElementById('exam-count').value = settings.examCount || 200;
+        document.getElementById('exam-minutes').value = settings.examMinutes || 90;
+        document.getElementById('total-score').value = settings.totalScore || 100;
+        document.getElementById('pass-score').value = settings.passScore || 60;
+        weightSettings = {
+            combos: settings.combos || {},
+            typeScores: { ...DEFAULT_TYPE_SCORES, ...(settings.typeScores || {}) }
+        };
+        buildDefaultWeights(false);
+        renderWeightPanel();
+    }
+
+    function switchAuthMode(nextMode) {
+        authMode = nextMode;
+        const isRegister = authMode === 'register';
+        document.getElementById('register-extra').classList.toggle('hidden', !isRegister);
+        document.getElementById('auth-submit-btn').innerText = isRegister ? '注册并登录' : '登录';
+        document.getElementById('auth-password').autocomplete = isRegister ? 'new-password' : 'current-password';
+
+        document.getElementById('login-tab').className = isRegister
+            ? 'auth-tab text-gray-600 rounded-md py-2 text-sm font-semibold'
+            : 'auth-tab bg-white text-blue-700 shadow-sm rounded-md py-2 text-sm font-semibold';
+        document.getElementById('register-tab').className = isRegister
+            ? 'auth-tab bg-white text-blue-700 shadow-sm rounded-md py-2 text-sm font-semibold'
+            : 'auth-tab text-gray-600 rounded-md py-2 text-sm font-semibold';
+        showAuthMessage('', '');
+    }
+
+    async function handleAuthSubmit(event) {
+        event.preventDefault();
+        const username = document.getElementById('auth-username').value.trim();
+        const password = document.getElementById('auth-password').value;
+        const displayName = document.getElementById('auth-display-name').value.trim() || username;
+
+        if (!username || !password) {
+            showAuthMessage('请输入用户名和密码。', 'error');
+            return;
+        }
+
+        try {
+            const data = await apiRequest(authMode === 'register' ? 'register' : 'login', {
+                method: 'POST',
+                body: { username, password, displayName }
+            });
+            localStorage.setItem(TOKEN_KEY, data.token);
+            currentUser = data.user;
+            showApp();
+            await loadExamSettings();
+            await loadQuestionBank();
+        } catch (err) {
+            showAuthMessage(err.message || '登录失败。', 'error');
+        }
+    }
+
+    function showAuthMessage(text, type) {
+        const el = document.getElementById('auth-message');
+        if (!text) {
+            el.classList.add('hidden');
+            el.innerText = '';
+            return;
+        }
+        el.className = type === 'error'
+            ? 'text-sm rounded-lg px-3 py-2 bg-red-50 text-red-700 border border-red-100'
+            : 'text-sm rounded-lg px-3 py-2 bg-green-50 text-green-700 border border-green-100';
+        el.innerText = text;
+    }
+
+    async function logout() {
+        try {
+            await apiRequest('logout', { method: 'POST', body: {} });
+        } catch (err) {
+            console.error('退出登录失败:', err);
+        }
+        currentUser = null;
+        localStorage.removeItem(TOKEN_KEY);
+        document.getElementById('setup-panel').classList.add('hidden');
+        document.getElementById('quiz-panel').classList.add('hidden');
+        document.getElementById('result-panel').classList.add('hidden');
+        document.getElementById('qrcode-box').classList.add('hidden');
+        document.getElementById('user-bar').classList.add('hidden');
+        const adminLink = document.getElementById('admin-link');
+        if (adminLink) adminLink.classList.add('hidden');
+        document.getElementById('auth-panel').classList.remove('hidden');
+    }
+
+    function showApp() {
+        document.getElementById('auth-panel').classList.add('hidden');
+        document.getElementById('setup-panel').classList.remove('hidden');
+        document.getElementById('qrcode-box').classList.remove('hidden');
+        document.getElementById('user-bar').classList.remove('hidden');
+        document.getElementById('current-user-name').innerText = currentUser.displayName || currentUser.username;
+        const adminLink = document.getElementById('admin-link');
+        if (adminLink) adminLink.classList.toggle('hidden', currentUser.role !== 'admin');
+    }
+
+    async function loadQuestionBank() {
+        setQuestionStatus('题库加载中...', false);
+        try {
+            const data = await apiRequest('questions');
+            allQuestions = (data.questions || []).map(normalizeJsonQuestion).filter(Boolean);
+            setQuestionStatus(`已读取受保护题库 ${allQuestions.length} 道题。`, true);
+        } catch (err) {
+            setQuestionStatus(err.message || '题库加载失败，请重新登录后再试。', false);
+            return;
+        }
+
+        initSetup();
+        await loadExamSettings();
+    }
+
+    function normalizeJsonQuestion(q) {
+        if (!q || !q.id) return null;
+        return {
+            chapter: q.chapter || '未分章',
+            id: String(q.id),
+            type: String(q.type || '').trim(),
+            stem: q.stem || '',
+            options: q.options || {},
+            answer: normalizeAnswer(q.answer)
+        };
+    }
+
+    function normalizeAnswer(value) {
+        return String(value || '').toUpperCase().replace(/[^A-Z]/g, '').split('').sort().join('');
+    }
+
+    function setQuestionStatus(text, loaded) {
+        document.getElementById('question-source-status').innerText = text;
+        const btn = document.getElementById('start-btn');
+        btn.disabled = !loaded;
+        btn.innerText = loaded ? '进入系统开始答题' : '题库加载中';
+    }
+
+    function initSetup() {
+        const select = document.getElementById('chapter-select');
+        select.innerHTML = '<option value="ALL">全部章节</option>';
+        const chapters = getChapters();
+        chapters.forEach(ch => {
+            const opt = document.createElement('option');
+            opt.value = ch;
+            opt.innerText = ch;
+            select.appendChild(opt);
+        });
+
+        document.getElementById('stat-question-count').innerText = allQuestions.length;
+        document.getElementById('stat-chapter-count').innerText = chapters.length;
+        document.getElementById('stat-type-count').innerText = getTypes().length;
+        buildDefaultWeights(false);
+        renderWeightPanel();
+    }
+
+    function handleModeChange(e) {
+        const selectedMode = e.target.value;
+        ['practice', 'random', 'recite', 'exam'].forEach(m => {
+            const el = document.getElementById(`mode-${m}-label`);
+            el.className = m === selectedMode
+                ? 'mode-card border rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition border-blue-500 bg-blue-50'
+                : 'mode-card border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition';
+        });
+
+        const isExam = selectedMode === 'exam';
+        document.getElementById('weight-panel').classList.add('hidden');
+        document.getElementById('chapter-select-container').classList.toggle('opacity-40', isExam);
+        document.getElementById('chapter-select-container').classList.toggle('pointer-events-none', isExam);
+        if (isExam) document.getElementById('chapter-select').value = 'ALL';
+        document.getElementById('qrcode-box').classList.toggle('hidden', isExam);
+        refreshPaperSummary();
+    }
+
+    function getChapters() {
+        return [...new Set(allQuestions.map(q => q.chapter))].filter(Boolean);
+    }
+
+    function getTypes() {
+        return [...new Set(allQuestions.map(q => q.type))].filter(Boolean);
+    }
+
+    function comboKey(chapter, type) {
+        return `${chapter}|||${type}`;
+    }
+
+    function getComboStats() {
+        const map = {};
+        allQuestions.forEach(q => {
+            const key = comboKey(q.chapter, q.type);
+            if (!map[key]) {
+                map[key] = { key, chapter: q.chapter, type: q.type, count: 0 };
+            }
+            map[key].count++;
+        });
+        return Object.values(map).sort((a, b) => {
+            const chapterSort = a.chapter.localeCompare(b.chapter, 'zh-CN');
+            return chapterSort || a.type.localeCompare(b.type, 'zh-CN');
+        });
+    }
+
+    function buildDefaultWeights(force = false) {
+        const combos = getComboStats();
+        combos.forEach(item => {
+            if (force || weightSettings.combos[item.key] === undefined) {
+                weightSettings.combos[item.key] = item.count;
+            }
+        });
+        getTypes().forEach(type => {
+            if (force || weightSettings.typeScores[type] === undefined) {
+                weightSettings.typeScores[type] = DEFAULT_TYPE_SCORES[type] || 0.5;
+            }
+        });
+    }
+
+    async function saveWeights() {
+        alert('考试权重只能在管理员后台调整。');
+    }
+
+    function resetWeights() {
+        weightSettings = { combos: {}, typeScores: { ...DEFAULT_TYPE_SCORES } };
+        buildDefaultWeights(true);
+        renderWeightPanel();
+    }
+
+    function renderWeightPanel() {
+        const body = document.getElementById('weight-table-body');
+        body.innerHTML = '';
+        getComboStats().forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="py-2 pr-3 text-gray-700">${escapeHtml(item.chapter)}</td>
+                <td class="py-2 pr-3 text-gray-600">${escapeHtml(item.type)}</td>
+                <td class="py-2 pr-3 text-right text-gray-500">${item.count}</td>
+                <td class="py-2 pr-3 text-right">
+                    <input class="weight-input w-20 border border-gray-200 rounded-md px-2 py-1 text-right" type="number" min="0" data-key="${escapeHtml(item.key)}" value="${Number(weightSettings.combos[item.key] || 0)}">
+                </td>
+                <td class="py-2 text-right text-gray-700" data-estimate="${escapeHtml(item.key)}">0</td>
+            `;
+            body.appendChild(tr);
+        });
+
+        const scoreList = document.getElementById('type-score-list');
+        scoreList.innerHTML = '';
+        getTypes().forEach(type => {
+            const row = document.createElement('label');
+            row.className = 'flex items-center justify-between gap-3';
+            row.innerHTML = `
+                <span class="text-sm text-gray-600">${escapeHtml(type)}</span>
+                <input class="type-score-input w-24 border border-gray-200 rounded-md px-2 py-1 text-right" type="number" min="0" step="0.1" data-type="${escapeHtml(type)}" value="${Number(weightSettings.typeScores[type] || 0.5)}">
+            `;
+            scoreList.appendChild(row);
+        });
+
+        document.querySelectorAll('.weight-input, .type-score-input').forEach(input => {
+            input.addEventListener('input', refreshPaperSummary);
+        });
+        refreshPaperSummary();
+    }
+
+    function readWeightsFromForm() {
+        document.querySelectorAll('.weight-input').forEach(input => {
+            weightSettings.combos[input.dataset.key] = Math.max(0, Number(input.value || 0));
+        });
+        document.querySelectorAll('.type-score-input').forEach(input => {
+            weightSettings.typeScores[input.dataset.type] = Math.max(0, Number(input.value || 0));
+        });
+    }
+
+    function getExamTargetCount() {
+        return Math.max(1, Math.min(Number(document.getElementById('exam-count').value || 200), allQuestions.length || 1));
+    }
+
+    function getExamMinutes() {
+        return Math.max(1, Number(document.getElementById('exam-minutes').value || 90));
+    }
+
+    function getPassScore() {
+        return Math.max(1, Number(document.getElementById('pass-score').value || 60));
+    }
+
+    function getTotalScore() {
+        return Math.max(1, Number(document.getElementById('total-score').value || 100));
+    }
+
+    function refreshPaperSummary() {
+        readWeightsFromForm();
+        const allocations = allocateCounts(getExamTargetCount());
+        let totalScore = 0;
+        let totalCount = 0;
+        document.querySelectorAll('[data-estimate]').forEach(el => { el.innerText = '0'; });
+        allocations.forEach(item => {
+            totalScore += item.count * Number(weightSettings.typeScores[item.type] || 0);
+            totalCount += item.count;
+            const el = Array.from(document.querySelectorAll('[data-estimate]')).find(node => node.dataset.estimate === item.key);
+            if (el) el.innerText = item.count;
+        });
+        document.getElementById('paper-total-score').innerText = formatScore(totalScore);
+        document.getElementById('paper-total-count').innerText = totalCount;
+    }
+
+    function allocateCounts(totalTarget) {
+        const stats = getComboStats().map(item => ({
+            ...item,
+            stock: item.count,
+            weight: Math.max(0, Number(weightSettings.combos[item.key] || 0)),
+            count: 0
+        })).filter(item => item.weight > 0 && item.stock > 0);
+        if (stats.length === 0) return [];
+
+        const available = stats.reduce((sum, item) => sum + item.stock, 0);
+        let remainingTarget = Math.min(totalTarget, available);
+        const totalWeight = stats.reduce((sum, item) => sum + item.weight, 0);
+
+        stats.forEach(item => {
+            const raw = remainingTarget * (item.weight / totalWeight);
+            item.count = Math.min(item.stock, Math.floor(raw));
+            item.remainder = raw - item.count;
+        });
+
+        let allocated = stats.reduce((sum, item) => sum + item.count, 0);
+        while (allocated < remainingTarget) {
+            const candidate = stats
+                .filter(item => item.count < item.stock)
+                .sort((a, b) => (b.remainder - a.remainder) || (b.weight - a.weight))[0];
+            if (!candidate) break;
+            candidate.count++;
+            candidate.remainder = 0;
+            allocated++;
+        }
+
+        return stats.filter(item => item.count > 0);
+    }
+
+    function startQuiz() {
+        if (allQuestions.length === 0) {
+            alert('题库尚未加载完成。');
+            return;
+        }
+
+        const selectedChapter = document.getElementById('chapter-select').value;
+        mode = document.querySelector('input[name="exam-mode"]:checked').value;
+        userAnswers = {};
+        currentIndex = 0;
+
+        if (mode === 'exam') {
+            readWeightsFromForm();
+            activeQuestions = generateWeightedExamPaper(getExamTargetCount());
+            const rawTotalScore = activeQuestions.reduce((sum, q) => sum + getQuestionBaseScore(q), 0);
+            paperConfig.totalScore = getTotalScore();
+            paperConfig.passScore = getPassScore();
+            paperConfig.scoreScale = rawTotalScore > 0 ? paperConfig.totalScore / rawTotalScore : 1;
+            document.getElementById('timer-box').classList.remove('hidden');
+            document.getElementById('submit-exam-btn').classList.remove('hidden');
+            startTimer(getExamMinutes() * 60);
+        } else {
+            activeQuestions = selectedChapter === 'ALL'
+                ? [...allQuestions]
+                : allQuestions.filter(q => q.chapter === selectedChapter);
+            if (mode === 'random') activeQuestions.sort(() => Math.random() - 0.5);
+            paperConfig.totalScore = activeQuestions.reduce((sum, q) => sum + getQuestionBaseScore(q), 0);
+            paperConfig.passScore = getPassScore();
+            paperConfig.scoreScale = 1;
+            document.getElementById('timer-box').classList.add('hidden');
+            document.getElementById('submit-exam-btn').classList.add('hidden');
+        }
+
+        if (activeQuestions.length === 0) {
+            alert('题库中无可用题目，无法开始。');
+            return;
+        }
+
+        document.getElementById('setup-panel').classList.add('hidden');
+        document.getElementById('result-panel').classList.add('hidden');
+        document.getElementById('quiz-panel').classList.remove('hidden');
+        document.getElementById('qrcode-box').classList.toggle('hidden', mode === 'exam');
+        document.getElementById('total-questions').innerText = activeQuestions.length;
+        document.getElementById('prev-btn').onclick = goPrev;
+        document.getElementById('action-btn').onclick = goNext;
+        renderQuestion();
+    }
+
+    function generateWeightedExamPaper(totalTarget = 200) {
+        const allocations = allocateCounts(totalTarget);
+        let paperQuestions = [];
+        allocations.forEach(item => {
+            const pool = allQuestions.filter(q => q.chapter === item.chapter && q.type === item.type);
+            paperQuestions = paperQuestions.concat(shuffle(pool).slice(0, item.count));
+        });
+
+        const typeOrder = { '单选': 1, '多选': 2, '判断': 3 };
+        return shuffle(paperQuestions).sort((a, b) => {
+            const orderA = typeOrder[a.type] || 99;
+            const orderB = typeOrder[b.type] || 99;
+            return orderA - orderB;
+        });
+    }
+
+    function renderQuestion() {
+        if (autoNextTimeout) {
+            clearTimeout(autoNextTimeout);
+            autoNextTimeout = null;
+        }
+
+        const q = activeQuestions[currentIndex];
+        document.getElementById('current-index').innerText = currentIndex + 1;
+        document.getElementById('q-type-badge').innerText = q.type;
+        document.getElementById('q-chapter').innerText = q.chapter;
+        document.getElementById('q-stem').innerText = `${currentIndex + 1}. ${q.stem}`;
+        document.getElementById('q-score').innerText = formatScore(getQuestionScore(q));
+        updateLiveScore();
+
+        const container = document.getElementById('options-container');
+        container.innerHTML = '';
+        const feedback = document.getElementById('feedback-box');
+        feedback.classList.add('hidden');
+        const historyAns = userAnswers[q.id] || [];
+
+        if (mode === 'recite') {
+            feedback.className = 'p-4 rounded-lg my-4 text-sm bg-green-50 text-green-800 border border-green-100';
+            feedback.innerHTML = `正确答案：<span class="font-bold text-lg text-green-700">${q.answer}</span>`;
+        }
+
+        Object.keys(q.options).forEach(key => {
+            const labelStr = q.options[key];
+            const item = document.createElement('label');
+            const isChecked = historyAns.includes(key);
+            const isCorrectAnswer = q.answer.includes(key);
+            let borderStyle = 'border-gray-200';
+            if (mode === 'recite' && isCorrectAnswer) borderStyle = 'border-green-500 bg-green-50';
+            else if (isChecked) borderStyle = 'border-blue-500 bg-blue-50';
+
+            item.className = `flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${borderStyle}`;
+            const inputType = q.type === '多选' ? 'checkbox' : 'radio';
+            const isDisabledStr = mode === 'recite' ? 'disabled' : '';
+            const isCheckedStr = (mode !== 'recite' && isChecked) ? 'checked' : '';
+            item.innerHTML = `
+                <input type="${inputType}" name="opt" value="${key}" ${isCheckedStr} ${isDisabledStr} class="mt-1 mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 rounded">
+                <span class="text-sm text-gray-700"><span class="font-bold mr-1">${key}.</span> ${escapeHtml(labelStr)}</span>
+            `;
+
+            if (mode !== 'recite') {
+                const input = item.querySelector('input');
+                input.addEventListener('change', () => {
+                    if (q.type !== '多选') {
+                        Array.from(container.children).forEach(c => {
+                            c.className = c.className.replace('border-blue-500 bg-blue-50', 'border-gray-200');
+                        });
+                    }
+                    item.className = input.checked
+                        ? item.className.replace('border-gray-200', 'border-blue-500 bg-blue-50')
+                        : item.className.replace('border-blue-500 bg-blue-50', 'border-gray-200');
+
+                    saveCurrentAnswer();
+                    updateLiveScore();
+
+                    if (mode === 'exam' && q.type !== '多选') {
+                        if (autoNextTimeout) clearTimeout(autoNextTimeout);
+                        autoNextTimeout = setTimeout(() => {
+                            if (currentIndex < activeQuestions.length - 1) goNext();
+                            else showLastQuestionHint();
+                        }, 600);
+                    } else if (mode !== 'exam' && q.type !== '多选') {
+                        showInstantFeedback(key, q.answer);
+                    }
+                });
+            }
+
+            container.appendChild(item);
+        });
+
+        if ((mode === 'practice' || mode === 'random') && q.type !== '多选' && historyAns.length > 0) {
+            showInstantFeedback(historyAns[0], q.answer);
+        }
+
+        if (q.type === '多选' && mode !== 'exam' && mode !== 'recite') {
+            const checkBtn = document.createElement('button');
+            checkBtn.className = 'w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-2.5 rounded-lg transition text-sm shadow-sm mt-2';
+            checkBtn.innerText = '检查多选结果';
+            checkBtn.onclick = () => {
+                const currentAns = (userAnswers[q.id] || []).join('');
+                if (!currentAns) { alert('请至少选择一个选项。'); return; }
+                showInstantFeedback(currentAns, q.answer);
+            };
+            container.appendChild(checkBtn);
+            if (historyAns.length > 0) showInstantFeedback(historyAns.join(''), q.answer);
+        }
+
+        const actionBtn = document.getElementById('action-btn');
+        if (currentIndex === activeQuestions.length - 1) {
+            actionBtn.innerText = mode === 'exam' ? '做题完毕' : (mode === 'recite' ? '背题结束' : '刷题结束');
+            actionBtn.classList.toggle('opacity-50', mode === 'exam');
+            actionBtn.classList.toggle('pointer-events-none', mode === 'exam');
+        } else {
+            actionBtn.innerText = '下一题';
+            actionBtn.classList.remove('opacity-50', 'pointer-events-none');
+        }
+    }
+
+    function showLastQuestionHint() {
+        const feedback = document.getElementById('feedback-box');
+        feedback.className = 'p-4 rounded-lg my-4 text-sm bg-green-50 text-green-800 border border-green-100';
+        feedback.innerHTML = '您已完成最后一题，点击下方“提前交卷结算”完成考试。';
+    }
+
+    function showInstantFeedback(userAns, correctAns) {
+        const feedback = document.getElementById('feedback-box');
+        feedback.className = 'p-4 rounded-lg my-4 text-sm border';
+        if (userAns === correctAns) {
+            feedback.classList.add('bg-green-50', 'text-green-800', 'border-green-100');
+            feedback.innerHTML = '<b>回答正确。</b>';
+        } else {
+            feedback.classList.add('bg-red-50', 'text-red-800', 'border-red-100');
+            feedback.innerHTML = `回答错误。正确答案是：<span class="font-bold text-lg text-red-600">${correctAns}</span>`;
+        }
+    }
+
+    function saveCurrentAnswer() {
+        const q = activeQuestions[currentIndex];
+        const checkedInputs = Array.from(document.querySelectorAll('input[name="opt"]:checked'));
+        userAnswers[q.id] = checkedInputs.map(i => i.value).sort();
+    }
+
+    function goNext() {
+        if (currentIndex < activeQuestions.length - 1) {
+            currentIndex++;
+            renderQuestion();
+        } else if (mode !== 'exam') {
+            alert('当前范围的内容已经全部查看完毕。');
+            backHome();
+        }
+    }
+
+    function goPrev() {
+        if (currentIndex > 0) {
+            currentIndex--;
+            renderQuestion();
+        }
+    }
+
+    function abortQuiz() {
+        if (confirm('确定要退出当前进度返回首页吗？')) {
+            clearInterval(timerInterval);
+            if (autoNextTimeout) clearTimeout(autoNextTimeout);
+            backHome();
+        }
+    }
+
+    function backHome() {
+        document.getElementById('quiz-panel').classList.add('hidden');
+        document.getElementById('result-panel').classList.add('hidden');
+        document.getElementById('setup-panel').classList.remove('hidden');
+        const currentMode = document.querySelector('input[name="exam-mode"]:checked').value;
+        document.getElementById('qrcode-box').classList.toggle('hidden', currentMode === 'exam');
+    }
+
+    function startTimer(duration) {
+        clearInterval(timerInterval);
+        let timer = duration;
+        timerInterval = setInterval(() => {
+            const minutes = String(Math.floor(timer / 60)).padStart(2, '0');
+            const seconds = String(timer % 60).padStart(2, '0');
+            document.getElementById('timer').textContent = `${minutes}:${seconds}`;
+            if (--timer < 0) {
+                clearInterval(timerInterval);
+                alert('时间到，系统已自动提交考卷。');
+                finishQuiz(false);
+            }
+        }, 1000);
+    }
+
+    async function finishQuiz(confirmRequired = false) {
+        if (confirmRequired && !confirm('确定要提前交卷并查看考试结果吗？')) return;
+        clearInterval(timerInterval);
+        if (autoNextTimeout) clearTimeout(autoNextTimeout);
+        document.getElementById('qrcode-box').classList.add('hidden');
+
+        let correct = 0;
+        let wrong = 0;
+        let answeredCount = 0;
+        let score = 0;
+        const reviewListEl = document.getElementById('review-list');
+        reviewListEl.innerHTML = '';
+
+        activeQuestions.forEach((q, index) => {
+            const userAnsArr = userAnswers[q.id] || [];
+            const userAnsStr = userAnsArr.join('');
+            const isAnswered = userAnsArr.length > 0;
+            const isCorrect = userAnsStr === q.answer;
+            if (isCorrect) {
+                correct++;
+                score += getQuestionScore(q);
+            } else {
+                wrong++;
+            }
+            if (!isAnswered) return;
+            answeredCount++;
+            reviewListEl.appendChild(buildReviewItem(q, index, userAnsArr, userAnsStr, isCorrect));
+        });
+
+        if (answeredCount === 0) {
+            reviewListEl.innerHTML = '<div class="text-center py-8 text-sm text-gray-400">本次测试您未作答任何题目，无明细回顾。</div>';
+        }
+
+        document.getElementById('quiz-panel').classList.add('hidden');
+        document.getElementById('result-panel').classList.remove('hidden');
+
+        const finalScoreEl = document.getElementById('final-score');
+        const badgeEl = document.getElementById('pass-badge');
+        finalScoreEl.innerText = `${formatScore(score)} 分`;
+
+        const passed = score >= paperConfig.passScore;
+        badgeEl.innerText = passed ? '通过考试' : '未达到及格线';
+        badgeEl.className = passed
+            ? 'inline-block px-4 py-1 rounded-full text-sm font-bold my-2 bg-green-100 text-green-800'
+            : 'inline-block px-4 py-1 rounded-full text-sm font-bold my-2 bg-red-100 text-red-800';
+        finalScoreEl.className = passed
+            ? 'text-5xl font-black text-green-600 my-4'
+            : 'text-5xl font-black text-red-500 my-4';
+
+        document.getElementById('score-summary').innerText = `满分 ${formatScore(paperConfig.totalScore)} 分，${formatScore(paperConfig.passScore)} 分及格`;
+        document.getElementById('correct-count').innerText = correct;
+        document.getElementById('wrong-count').innerText = wrong;
+        document.getElementById('answered-count').innerText = answeredCount;
+
+        await saveExamRecord(score, correct, wrong, answeredCount);
+    }
+
+    function buildReviewItem(q, index, userAnsArr, userAnsStr, isCorrect) {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = `p-4 border rounded-lg bg-white shadow-sm space-y-3 ${isCorrect ? 'border-green-200' : 'border-red-200'}`;
+        let optionsHtml = '';
+        Object.keys(q.options).forEach(key => {
+            const optionText = q.options[key];
+            const isUserSelected = userAnsArr.includes(key);
+            const isRightKey = q.answer.includes(key);
+            let cardClass = 'border-gray-100 bg-gray-50 text-gray-700';
+            let statusText = '';
+            if (isUserSelected && isRightKey) {
+                cardClass = 'border-green-400 bg-green-50 font-medium text-green-900';
+                statusText = '正确';
+            } else if (isUserSelected && !isRightKey) {
+                cardClass = 'border-red-400 bg-red-50 font-medium text-red-900';
+                statusText = '错误';
+            } else if (!isUserSelected && isRightKey) {
+                cardClass = 'border-yellow-400 bg-yellow-50 text-yellow-900';
+                statusText = '标准答案';
+            }
+            optionsHtml += `
+                <div class="flex items-start p-2 border text-xs rounded-lg transition ${cardClass}">
+                    <span class="min-w-[56px] text-gray-500">${statusText}</span>
+                    <span><b class="mr-1">${key}.</b> ${escapeHtml(optionText)}</span>
+                </div>
+            `;
+        });
+
+        itemDiv.innerHTML = `
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-2 gap-2">
+                <div>
+                    <span class="${isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'} text-xs font-bold px-2.5 py-1 rounded-full">
+                        ${isCorrect ? '正确' : '错误'}
+                    </span>
+                    <span class="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full ml-2">${escapeHtml(q.type)}</span>
+                    <span class="text-xs text-gray-400 ml-2">${escapeHtml(q.chapter)}</span>
+                </div>
+                <div class="text-xs font-medium text-gray-500">
+                    考生选择: <span class="${isCorrect ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}">${userAnsStr || '未填'}</span> |
+                    正确答案: <span class="text-green-600 font-bold">${q.answer}</span> |
+                    分值: <span class="text-gray-800 font-bold">${formatScore(getQuestionScore(q))}</span>
+                </div>
+            </div>
+            <div class="text-sm font-semibold text-gray-800 leading-relaxed">${index + 1}. ${escapeHtml(q.stem)}</div>
+            <div class="grid grid-cols-1 gap-2">${optionsHtml}</div>
+        `;
+        return itemDiv;
+    }
+
+    async function saveExamRecord(score, correct, wrong, answeredCount) {
+        if (!currentUser || mode !== 'exam') return;
+        try {
+            await apiRequest('save-record', {
+                method: 'POST',
+                body: {
+                    score,
+                    totalScore: paperConfig.totalScore,
+                    passScore: paperConfig.passScore,
+                    correct,
+                    wrong,
+                    answeredCount,
+                    totalQuestions: activeQuestions.length
+                }
+            });
+        } catch (err) {
+            console.error('成绩保存失败:', err);
+        }
+    }
+
+    function getQuestionScore(q) {
+        return getQuestionBaseScore(q) * (paperConfig.scoreScale || 1);
+    }
+
+    function getQuestionBaseScore(q) {
+        return Number(weightSettings.typeScores[q.type] || DEFAULT_TYPE_SCORES[q.type] || 0.5);
+    }
+
+    function updateLiveScore() {
+        const score = activeQuestions.reduce((sum, q) => {
+            const ans = (userAnswers[q.id] || []).join('');
+            return ans === q.answer ? sum + getQuestionScore(q) : sum;
+        }, 0);
+        document.getElementById('live-score').innerText = formatScore(score);
+    }
+
+    function shuffle(arr) {
+        return [...arr].sort(() => Math.random() - 0.5);
+    }
+
+    function formatScore(value) {
+        const num = Number(value || 0);
+        return Number.isInteger(num) ? String(num) : num.toFixed(1);
+    }
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, ch => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[ch]));
+    }
+
+    function cssEscape(value) {
+        if (window.CSS && CSS.escape) return CSS.escape(value);
+        return String(value).replace(/"/g, '\\"');
+    }
+</script>
+</body>
+</html>

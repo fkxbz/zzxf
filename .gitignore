@@ -1,0 +1,6 @@
+.wrangler/
+sync-work/
+node_modules/
+.env
+.env.*
+*.log
