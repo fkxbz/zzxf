@@ -11,6 +11,8 @@
         input[type="number"] { -moz-appearance: textfield; }
         input[type="number"]::-webkit-inner-spin-button,
         input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .mode-card { min-height: 96px; }
+        .mode-card input { accent-color: #2563eb; }
     </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -61,6 +63,19 @@
                     <button id="auth-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition shadow-sm" type="submit">登录</button>
                     <p id="auth-message" class="hidden text-sm rounded-lg px-3 py-2"></p>
                 </form>
+            </div>
+        </section>
+
+        <section id="qrcode-box" class="hidden overflow-hidden rounded-lg border border-emerald-100 bg-white shadow-sm">
+            <div class="grid gap-0 md:grid-cols-[1fr_320px]">
+                <div class="bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 md:p-6 flex flex-col justify-center">
+                    <div class="inline-flex w-fit items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">微信打赏二维码</div>
+                    <h2 class="mt-3 text-xl font-bold text-gray-900">感谢支持消防设施操作员练习系统</h2>
+                    <p class="mt-2 text-sm leading-6 text-gray-600">图片放在这里，登录后先看到，再开始练习；绿色二维码和页面的蓝色主色调做了区分，整体更清爽。</p>
+                </div>
+                <div class="bg-emerald-50 p-4 flex items-center justify-center">
+                    <img src="1.jpg" alt="微信支付打赏二维码" class="w-full max-w-[260px] rounded-lg border border-white bg-white shadow-sm">
+                </div>
             </div>
         </section>
 
@@ -118,49 +133,67 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-gray-600 mb-2">选择模式</label>
-                <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
-                    <label class="mode-card border rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition border-blue-500 bg-blue-50" id="mode-practice-label">
-                        <div class="flex items-center gap-2">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <label class="block text-sm font-semibold text-gray-700">选择模式</label>
+                    <span class="text-xs text-gray-400">模拟考试按后台规则抽题</span>
+                </div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+                    <label class="mode-card border rounded-lg p-4 cursor-pointer transition border-blue-500 bg-blue-50 shadow-sm" id="mode-practice-label">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="font-semibold text-gray-800 text-sm">章节练习</div>
+                                <span class="block text-xs text-gray-500 mt-1">顺序做题 即时对错</span>
+                            </div>
                             <input type="radio" name="exam-mode" value="practice" checked class="h-4 w-4 text-blue-600">
-                            <span class="font-medium text-gray-700 text-sm">章节练习</span>
                         </div>
-                        <span class="block text-xs text-gray-400 mt-1">顺序做题 即时对错</span>
                     </label>
-                    <label class="mode-card border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition" id="mode-random-label">
-                        <div class="flex items-center gap-2">
+                    <label class="mode-card border border-gray-200 rounded-lg p-4 cursor-pointer transition hover:border-blue-200 hover:bg-blue-50" id="mode-random-label">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="font-semibold text-gray-800 text-sm">随机刷题</div>
+                                <span class="block text-xs text-gray-500 mt-1">乱序抽题 即时对错</span>
+                            </div>
                             <input type="radio" name="exam-mode" value="random" class="h-4 w-4 text-blue-600">
-                            <span class="font-medium text-gray-700 text-sm">随机刷题</span>
                         </div>
-                        <span class="block text-xs text-gray-400 mt-1">乱序抽题 即时对错</span>
                     </label>
-                    <label class="mode-card border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition" id="mode-recite-label">
-                        <div class="flex items-center gap-2">
+                    <label class="mode-card border border-gray-200 rounded-lg p-4 cursor-pointer transition hover:border-blue-200 hover:bg-blue-50" id="mode-recite-label">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="font-semibold text-gray-800 text-sm">背题模式</div>
+                                <span class="block text-xs text-gray-500 mt-1">直接显隐 快速记忆</span>
+                            </div>
                             <input type="radio" name="exam-mode" value="recite" class="h-4 w-4 text-blue-600">
-                            <span class="font-medium text-orange-600 text-sm">背题模式</span>
                         </div>
-                        <span class="block text-xs text-orange-400 mt-1">直接显隐 快速记忆</span>
                     </label>
-                    <label class="mode-card border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition" id="mode-exam-label">
-                        <div class="flex items-center gap-2">
+                    <label class="mode-card border-2 border-blue-500 rounded-lg p-4 cursor-pointer transition bg-blue-600 text-white shadow-md hover:bg-blue-700" id="mode-exam-label">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-sm">模拟考试</span>
+                                    <span class="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-semibold">重点</span>
+                                </div>
+                                <span class="block text-xs text-blue-100 mt-1">按权重抽题 限时交卷</span>
+                            </div>
                             <input type="radio" name="exam-mode" value="exam" class="h-4 w-4 text-blue-600">
-                            <span class="font-medium text-gray-700 text-sm">模拟考试</span>
                         </div>
-                        <span class="block text-xs text-gray-400 mt-1">按权重抽题 限时交卷</span>
                     </label>
-                    <label class="mode-card border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition" id="mode-wrong-label">
-                        <div class="flex items-center gap-2">
+                    <label class="mode-card border border-gray-200 rounded-lg p-4 cursor-pointer transition hover:border-blue-200 hover:bg-blue-50" id="mode-wrong-label">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="font-semibold text-gray-800 text-sm">错题练习</div>
+                                <span class="block text-xs text-gray-500 mt-1">从已完成模拟考试抽取</span>
+                            </div>
                             <input type="radio" name="exam-mode" value="wrong" class="h-4 w-4 text-blue-600">
-                            <span class="font-medium text-red-600 text-sm">错题练习</span>
                         </div>
-                        <span class="block text-xs text-red-400 mt-1">从已完成模拟考试抽取</span>
                     </label>
-                    <label class="mode-card border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition" id="mode-paper-label">
-                        <div class="flex items-center gap-2">
+                    <label class="mode-card border border-gray-200 rounded-lg p-4 cursor-pointer transition hover:border-blue-200 hover:bg-blue-50" id="mode-paper-label">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="font-semibold text-gray-800 text-sm">已考试卷背题</div>
+                                <span class="block text-xs text-gray-500 mt-1">浏览最近完成试卷</span>
+                            </div>
                             <input type="radio" name="exam-mode" value="paper" class="h-4 w-4 text-blue-600">
-                            <span class="font-medium text-blue-700 text-sm">已考试卷背题</span>
                         </div>
-                        <span class="block text-xs text-blue-400 mt-1">浏览最近完成试卷</span>
                     </label>
                 </div>
             </div>
@@ -282,12 +315,6 @@
             </div>
         </section>
 
-        <section id="qrcode-box" class="bg-emerald-50 border border-emerald-100 p-6 rounded-lg text-center mt-6 hidden">
-            <p class="text-xl font-bold text-green-600 md:text-2xl tracking-tight">感谢使用</p>
-            <div class="max-w-md mx-auto mt-3">
-                <img src="1.jpg" alt="系统二维码" class="w-full h-auto rounded-lg mx-auto shadow-sm max-w-[650px] transition-all">
-            </div>
-        </section>
     </main>
 
     <footer class="mt-12 text-center text-xs text-gray-400 space-y-1">
@@ -545,9 +572,7 @@
         const selectedMode = e.target.value;
         ['practice', 'random', 'recite', 'exam', 'wrong', 'paper'].forEach(m => {
             const el = document.getElementById(`mode-${m}-label`);
-            el.className = m === selectedMode
-                ? 'mode-card border rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition border-blue-500 bg-blue-50'
-                : 'mode-card border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition';
+            if (el) el.className = getModeCardClass(m, m === selectedMode);
         });
 
         const isExam = selectedMode === 'exam';
@@ -555,8 +580,18 @@
         document.getElementById('chapter-select-container').classList.toggle('opacity-40', isExam || selectedMode === 'wrong' || selectedMode === 'paper');
         document.getElementById('chapter-select-container').classList.toggle('pointer-events-none', isExam || selectedMode === 'wrong' || selectedMode === 'paper');
         if (isExam || selectedMode === 'wrong' || selectedMode === 'paper') document.getElementById('chapter-select').value = 'ALL';
-        document.getElementById('qrcode-box').classList.toggle('hidden', isExam);
         refreshPaperSummary();
+    }
+
+    function getModeCardClass(cardMode, selected) {
+        if (cardMode === 'exam') {
+            return selected
+                ? 'mode-card border-2 border-blue-700 rounded-lg p-4 cursor-pointer transition bg-blue-700 text-white shadow-lg ring-2 ring-blue-100'
+                : 'mode-card border-2 border-blue-500 rounded-lg p-4 cursor-pointer transition bg-blue-600 text-white shadow-md hover:bg-blue-700';
+        }
+        return selected
+            ? 'mode-card border rounded-lg p-4 cursor-pointer transition border-blue-500 bg-blue-50 shadow-sm'
+            : 'mode-card border border-gray-200 rounded-lg p-4 cursor-pointer transition hover:border-blue-200 hover:bg-blue-50';
     }
 
     function getChapters() {
@@ -829,7 +864,7 @@
         document.getElementById('message-panel').classList.add('hidden');
         document.getElementById('result-panel').classList.add('hidden');
         document.getElementById('quiz-panel').classList.remove('hidden');
-        document.getElementById('qrcode-box').classList.toggle('hidden', mode === 'exam');
+        document.getElementById('qrcode-box').classList.add('hidden');
         document.getElementById('total-questions').innerText = activeQuestions.length;
         document.getElementById('prev-btn').onclick = goPrev;
         document.getElementById('action-btn').onclick = goNext;
@@ -1023,8 +1058,7 @@
         document.getElementById('result-panel').classList.add('hidden');
         document.getElementById('setup-panel').classList.remove('hidden');
         document.getElementById('message-panel').classList.remove('hidden');
-        const currentMode = document.querySelector('input[name="exam-mode"]:checked').value;
-        document.getElementById('qrcode-box').classList.toggle('hidden', currentMode === 'exam');
+        document.getElementById('qrcode-box').classList.remove('hidden');
     }
 
     function startTimer(duration) {
