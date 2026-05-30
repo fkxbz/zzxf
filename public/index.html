@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>消防设施操作员模拟考试系统</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
@@ -118,7 +119,7 @@
 
             <div>
                 <label class="block text-sm font-medium text-gray-600 mb-2">选择模式</label>
-                <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
                     <label class="mode-card border rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition border-blue-500 bg-blue-50" id="mode-practice-label">
                         <div class="flex items-center gap-2">
                             <input type="radio" name="exam-mode" value="practice" checked class="h-4 w-4 text-blue-600">
@@ -146,6 +147,20 @@
                             <span class="font-medium text-gray-700 text-sm">模拟考试</span>
                         </div>
                         <span class="block text-xs text-gray-400 mt-1">按权重抽题 限时交卷</span>
+                    </label>
+                    <label class="mode-card border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition" id="mode-wrong-label">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="exam-mode" value="wrong" class="h-4 w-4 text-blue-600">
+                            <span class="font-medium text-red-600 text-sm">错题练习</span>
+                        </div>
+                        <span class="block text-xs text-red-400 mt-1">从已完成模拟考试抽取</span>
+                    </label>
+                    <label class="mode-card border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition" id="mode-paper-label">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="exam-mode" value="paper" class="h-4 w-4 text-blue-600">
+                            <span class="font-medium text-blue-700 text-sm">已考试卷背题</span>
+                        </div>
+                        <span class="block text-xs text-blue-400 mt-1">浏览最近完成试卷</span>
                     </label>
                 </div>
             </div>
@@ -202,6 +217,16 @@
             </button>
         </section>
 
+        <section id="message-panel" class="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4 hidden">
+            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h2 class="text-lg font-semibold text-gray-800">留言板</h2>
+                <button id="refresh-message-btn" class="text-sm text-blue-600 font-medium">刷新</button>
+            </div>
+            <textarea id="message-content" rows="3" class="w-full border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="给管理员留言"></textarea>
+            <button id="post-message-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium">提交留言</button>
+            <div id="message-list" class="space-y-3 text-sm"></div>
+        </section>
+
         <section id="quiz-panel" class="bg-white border border-gray-200 rounded-lg shadow-sm p-6 hidden space-y-4">
             <div class="flex flex-col gap-3 md:flex-row md:justify-between md:items-center text-sm text-gray-500 border-b border-gray-100 pb-3">
                 <div class="flex flex-wrap items-center gap-3">
@@ -227,6 +252,7 @@
                     <button id="abort-btn" class="flex-1 border border-red-200 text-red-500 hover:bg-red-50 py-3 rounded-lg text-sm transition font-medium">退出</button>
                     <button id="action-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg text-sm transition font-medium shadow-sm">下一题</button>
                 </div>
+                <button id="pause-exam-btn" class="w-full bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-lg text-sm transition font-medium shadow-sm hidden">暂停考试，下次继续</button>
                 <button id="submit-exam-btn" class="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg text-sm transition font-medium shadow-sm hidden">提前交卷结算</button>
             </div>
         </section>
@@ -282,8 +308,9 @@
     let timerInterval = null;
     let autoNextTimeout = null;
     let authMode = 'login';
-    let weightSettings = { combos: {}, typeScores: { ...DEFAULT_TYPE_SCORES } };
+    let weightSettings = { combos: {}, percentCombos: {}, typeScores: { ...DEFAULT_TYPE_SCORES } };
     let paperConfig = { totalScore: 100, passScore: 60, scoreScale: 1 };
+    let remainingSeconds = 0;
 
     const TOKEN_KEY = `${STORAGE_PREFIX}token`;
 
@@ -324,10 +351,13 @@
         document.getElementById('start-btn').addEventListener('click', startQuiz);
         document.getElementById('abort-btn').addEventListener('click', abortQuiz);
         document.getElementById('submit-exam-btn').addEventListener('click', () => finishQuiz(true));
+        document.getElementById('pause-exam-btn').addEventListener('click', pauseExam);
         document.getElementById('back-home-btn').addEventListener('click', backHome);
         document.getElementById('reset-weight-btn').addEventListener('click', resetWeights);
         document.getElementById('save-weight-btn').addEventListener('click', saveWeights);
         document.getElementById('exam-count').addEventListener('input', refreshPaperSummary);
+        document.getElementById('post-message-btn').addEventListener('click', postMessage);
+        document.getElementById('refresh-message-btn').addEventListener('click', loadMessages);
     }
 
     async function restoreSession() {
@@ -362,6 +392,7 @@
         document.getElementById('pass-score').value = settings.passScore || 60;
         weightSettings = {
             combos: settings.combos || {},
+            percentCombos: settings.percentCombos || {},
             typeScores: { ...DEFAULT_TYPE_SCORES, ...(settings.typeScores || {}) }
         };
         buildDefaultWeights(false);
@@ -435,6 +466,7 @@
         document.getElementById('quiz-panel').classList.add('hidden');
         document.getElementById('result-panel').classList.add('hidden');
         document.getElementById('qrcode-box').classList.add('hidden');
+        document.getElementById('message-panel').classList.add('hidden');
         document.getElementById('user-bar').classList.add('hidden');
         const adminLink = document.getElementById('admin-link');
         if (adminLink) adminLink.classList.add('hidden');
@@ -444,11 +476,13 @@
     function showApp() {
         document.getElementById('auth-panel').classList.add('hidden');
         document.getElementById('setup-panel').classList.remove('hidden');
+        document.getElementById('message-panel').classList.remove('hidden');
         document.getElementById('qrcode-box').classList.remove('hidden');
         document.getElementById('user-bar').classList.remove('hidden');
         document.getElementById('current-user-name').innerText = currentUser.displayName || currentUser.username;
         const adminLink = document.getElementById('admin-link');
         if (adminLink) adminLink.classList.toggle('hidden', currentUser.role !== 'admin');
+        loadMessages();
     }
 
     async function loadQuestionBank() {
@@ -509,7 +543,7 @@
 
     function handleModeChange(e) {
         const selectedMode = e.target.value;
-        ['practice', 'random', 'recite', 'exam'].forEach(m => {
+        ['practice', 'random', 'recite', 'exam', 'wrong', 'paper'].forEach(m => {
             const el = document.getElementById(`mode-${m}-label`);
             el.className = m === selectedMode
                 ? 'mode-card border rounded-lg p-3 cursor-pointer hover:bg-blue-50 transition border-blue-500 bg-blue-50'
@@ -518,9 +552,9 @@
 
         const isExam = selectedMode === 'exam';
         document.getElementById('weight-panel').classList.add('hidden');
-        document.getElementById('chapter-select-container').classList.toggle('opacity-40', isExam);
-        document.getElementById('chapter-select-container').classList.toggle('pointer-events-none', isExam);
-        if (isExam) document.getElementById('chapter-select').value = 'ALL';
+        document.getElementById('chapter-select-container').classList.toggle('opacity-40', isExam || selectedMode === 'wrong' || selectedMode === 'paper');
+        document.getElementById('chapter-select-container').classList.toggle('pointer-events-none', isExam || selectedMode === 'wrong' || selectedMode === 'paper');
+        if (isExam || selectedMode === 'wrong' || selectedMode === 'paper') document.getElementById('chapter-select').value = 'ALL';
         document.getElementById('qrcode-box').classList.toggle('hidden', isExam);
         refreshPaperSummary();
     }
@@ -657,12 +691,22 @@
             ...item,
             stock: item.count,
             weight: Math.max(0, Number(weightSettings.combos[item.key] || 0)),
+            percent: Math.max(0, Number(weightSettings.percentCombos?.[item.key] || 0)),
             count: 0
-        })).filter(item => item.weight > 0 && item.stock > 0);
+        })).filter(item => (item.weight > 0 || item.percent > 0) && item.stock > 0);
         if (stats.length === 0) return [];
 
         const available = stats.reduce((sum, item) => sum + item.stock, 0);
         let remainingTarget = Math.min(totalTarget, available);
+        const totalPercent = stats.reduce((sum, item) => sum + item.percent, 0);
+        if (totalPercent > 0) {
+            stats.forEach(item => {
+                item.count = Math.min(item.stock, Math.floor(remainingTarget * item.percent / 100));
+            });
+            rebalanceAllocation(stats, remainingTarget);
+            return stats.filter(item => item.count > 0);
+        }
+
         const totalWeight = stats.reduce((sum, item) => sum + item.weight, 0);
 
         stats.forEach(item => {
@@ -671,21 +715,30 @@
             item.remainder = raw - item.count;
         });
 
-        let allocated = stats.reduce((sum, item) => sum + item.count, 0);
-        while (allocated < remainingTarget) {
-            const candidate = stats
-                .filter(item => item.count < item.stock)
-                .sort((a, b) => (b.remainder - a.remainder) || (b.weight - a.weight))[0];
-            if (!candidate) break;
-            candidate.count++;
-            candidate.remainder = 0;
-            allocated++;
-        }
+        rebalanceAllocation(stats, remainingTarget);
 
         return stats.filter(item => item.count > 0);
     }
 
-    function startQuiz() {
+    function rebalanceAllocation(items, target) {
+        let allocated = items.reduce((sum, item) => sum + item.count, 0);
+        while (allocated < target) {
+            const candidates = items.filter(item => item.count < item.stock);
+            if (candidates.length === 0) break;
+            const candidate = candidates[Math.floor(Math.random() * candidates.length)];
+            candidate.count++;
+            allocated++;
+        }
+        while (allocated > target) {
+            const candidates = items.filter(item => item.count > 0);
+            if (candidates.length === 0) break;
+            const candidate = candidates[Math.floor(Math.random() * candidates.length)];
+            candidate.count--;
+            allocated--;
+        }
+    }
+
+    async function startQuiz() {
         if (allQuestions.length === 0) {
             alert('题库尚未加载完成。');
             return;
@@ -695,6 +748,15 @@
         mode = document.querySelector('input[name="exam-mode"]:checked').value;
         userAnswers = {};
         currentIndex = 0;
+        remainingSeconds = 0;
+
+        const saved = loadProgress(mode, selectedChapter);
+        if (saved && saved.questionIds?.length && confirm('发现上次未完成的进度，是否继续？选择“取消”将重新开始。')) {
+            restoreProgress(saved);
+            openQuizPanel();
+            return;
+        }
+        if (saved) clearProgress(mode, selectedChapter);
 
         if (mode === 'exam') {
             readWeightsFromForm();
@@ -705,7 +767,41 @@
             paperConfig.scoreScale = rawTotalScore > 0 ? paperConfig.totalScore / rawTotalScore : 1;
             document.getElementById('timer-box').classList.remove('hidden');
             document.getElementById('submit-exam-btn').classList.remove('hidden');
-            startTimer(getExamMinutes() * 60);
+            document.getElementById('pause-exam-btn').classList.remove('hidden');
+            remainingSeconds = getExamMinutes() * 60;
+        } else if (mode === 'wrong') {
+            const records = await loadRecords();
+            const wrongIds = [...new Set(records.flatMap(record => record.wrongIds || []))];
+            if (records.length === 0) {
+                alert('没有已完成的模拟考试，暂时不能进行错题练习。');
+                return;
+            }
+            if (wrongIds.length === 0) {
+                alert('已完成的模拟考试中没有错题。');
+                return;
+            }
+            activeQuestions = wrongIds.map(id => allQuestions.find(q => q.id === id)).filter(Boolean);
+            paperConfig.totalScore = activeQuestions.reduce((sum, q) => sum + getQuestionBaseScore(q), 0);
+            paperConfig.passScore = getPassScore();
+            paperConfig.scoreScale = 1;
+            document.getElementById('timer-box').classList.add('hidden');
+            document.getElementById('submit-exam-btn').classList.add('hidden');
+            document.getElementById('pause-exam-btn').classList.add('hidden');
+        } else if (mode === 'paper') {
+            const records = await loadRecords();
+            const latest = records.find(record => record.questionIds?.length);
+            if (!latest) {
+                alert('没有已完成的模拟考试，暂时不能浏览试卷。');
+                return;
+            }
+            activeQuestions = latest.questionIds.map(id => allQuestions.find(q => q.id === id)).filter(Boolean);
+            userAnswers = latest.userAnswers || {};
+            paperConfig.totalScore = latest.totalScore || getTotalScore();
+            paperConfig.passScore = latest.passScore || getPassScore();
+            paperConfig.scoreScale = 1;
+            document.getElementById('timer-box').classList.add('hidden');
+            document.getElementById('submit-exam-btn').classList.add('hidden');
+            document.getElementById('pause-exam-btn').classList.add('hidden');
         } else {
             activeQuestions = selectedChapter === 'ALL'
                 ? [...allQuestions]
@@ -716,6 +812,7 @@
             paperConfig.scoreScale = 1;
             document.getElementById('timer-box').classList.add('hidden');
             document.getElementById('submit-exam-btn').classList.add('hidden');
+            document.getElementById('pause-exam-btn').classList.add('hidden');
         }
 
         if (activeQuestions.length === 0) {
@@ -723,13 +820,22 @@
             return;
         }
 
+        saveProgress();
+        openQuizPanel();
+    }
+
+    function openQuizPanel() {
         document.getElementById('setup-panel').classList.add('hidden');
+        document.getElementById('message-panel').classList.add('hidden');
         document.getElementById('result-panel').classList.add('hidden');
         document.getElementById('quiz-panel').classList.remove('hidden');
         document.getElementById('qrcode-box').classList.toggle('hidden', mode === 'exam');
         document.getElementById('total-questions').innerText = activeQuestions.length;
         document.getElementById('prev-btn').onclick = goPrev;
         document.getElementById('action-btn').onclick = goNext;
+        document.getElementById('pause-exam-btn').classList.toggle('hidden', mode !== 'exam');
+        document.getElementById('submit-exam-btn').classList.toggle('hidden', mode !== 'exam');
+        if (mode === 'exam' && remainingSeconds > 0) startTimer(remainingSeconds);
         renderQuestion();
     }
 
@@ -769,7 +875,7 @@
         feedback.classList.add('hidden');
         const historyAns = userAnswers[q.id] || [];
 
-        if (mode === 'recite') {
+        if (mode === 'recite' || mode === 'paper') {
             feedback.className = 'p-4 rounded-lg my-4 text-sm bg-green-50 text-green-800 border border-green-100';
             feedback.innerHTML = `正确答案：<span class="font-bold text-lg text-green-700">${q.answer}</span>`;
         }
@@ -780,19 +886,19 @@
             const isChecked = historyAns.includes(key);
             const isCorrectAnswer = q.answer.includes(key);
             let borderStyle = 'border-gray-200';
-            if (mode === 'recite' && isCorrectAnswer) borderStyle = 'border-green-500 bg-green-50';
+            if ((mode === 'recite' || mode === 'paper') && isCorrectAnswer) borderStyle = 'border-green-500 bg-green-50';
             else if (isChecked) borderStyle = 'border-blue-500 bg-blue-50';
 
             item.className = `flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${borderStyle}`;
             const inputType = q.type === '多选' ? 'checkbox' : 'radio';
-            const isDisabledStr = mode === 'recite' ? 'disabled' : '';
+            const isDisabledStr = (mode === 'recite' || mode === 'paper') ? 'disabled' : '';
             const isCheckedStr = (mode !== 'recite' && isChecked) ? 'checked' : '';
             item.innerHTML = `
                 <input type="${inputType}" name="opt" value="${key}" ${isCheckedStr} ${isDisabledStr} class="mt-1 mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 rounded">
                 <span class="text-sm text-gray-700"><span class="font-bold mr-1">${key}.</span> ${escapeHtml(labelStr)}</span>
             `;
 
-            if (mode !== 'recite') {
+            if (mode !== 'recite' && mode !== 'paper') {
                 const input = item.querySelector('input');
                 input.addEventListener('change', () => {
                     if (q.type !== '多选') {
@@ -826,7 +932,7 @@
             showInstantFeedback(historyAns[0], q.answer);
         }
 
-        if (q.type === '多选' && mode !== 'exam' && mode !== 'recite') {
+        if (q.type === '多选' && mode !== 'exam' && mode !== 'recite' && mode !== 'paper') {
             const checkBtn = document.createElement('button');
             checkBtn.className = 'w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-2.5 rounded-lg transition text-sm shadow-sm mt-2';
             checkBtn.innerText = '检查多选结果';
@@ -841,7 +947,7 @@
 
         const actionBtn = document.getElementById('action-btn');
         if (currentIndex === activeQuestions.length - 1) {
-            actionBtn.innerText = mode === 'exam' ? '做题完毕' : (mode === 'recite' ? '背题结束' : '刷题结束');
+            actionBtn.innerText = mode === 'exam' ? '做题完毕' : ((mode === 'recite' || mode === 'paper') ? '背题结束' : '刷题结束');
             actionBtn.classList.toggle('opacity-50', mode === 'exam');
             actionBtn.classList.toggle('pointer-events-none', mode === 'exam');
         } else {
@@ -872,14 +978,17 @@
         const q = activeQuestions[currentIndex];
         const checkedInputs = Array.from(document.querySelectorAll('input[name="opt"]:checked'));
         userAnswers[q.id] = checkedInputs.map(i => i.value).sort();
+        saveProgress();
     }
 
     function goNext() {
         if (currentIndex < activeQuestions.length - 1) {
             currentIndex++;
+            saveProgress();
             renderQuestion();
         } else if (mode !== 'exam') {
             alert('当前范围的内容已经全部查看完毕。');
+            clearProgress();
             backHome();
         }
     }
@@ -887,34 +996,46 @@
     function goPrev() {
         if (currentIndex > 0) {
             currentIndex--;
+            saveProgress();
             renderQuestion();
         }
     }
 
     function abortQuiz() {
-        if (confirm('确定要退出当前进度返回首页吗？')) {
+        if (confirm('确定要退出当前进度返回首页吗？本次进度会保留，下次可继续。')) {
             clearInterval(timerInterval);
             if (autoNextTimeout) clearTimeout(autoNextTimeout);
+            saveProgress();
             backHome();
         }
+    }
+
+    function pauseExam() {
+        if (mode !== 'exam') return;
+        clearInterval(timerInterval);
+        saveProgress();
+        alert('考试已暂停，下次进入模拟考试可继续。');
+        backHome();
     }
 
     function backHome() {
         document.getElementById('quiz-panel').classList.add('hidden');
         document.getElementById('result-panel').classList.add('hidden');
         document.getElementById('setup-panel').classList.remove('hidden');
+        document.getElementById('message-panel').classList.remove('hidden');
         const currentMode = document.querySelector('input[name="exam-mode"]:checked').value;
         document.getElementById('qrcode-box').classList.toggle('hidden', currentMode === 'exam');
     }
 
     function startTimer(duration) {
         clearInterval(timerInterval);
-        let timer = duration;
+        remainingSeconds = duration;
         timerInterval = setInterval(() => {
-            const minutes = String(Math.floor(timer / 60)).padStart(2, '0');
-            const seconds = String(timer % 60).padStart(2, '0');
+            const minutes = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
+            const seconds = String(remainingSeconds % 60).padStart(2, '0');
             document.getElementById('timer').textContent = `${minutes}:${seconds}`;
-            if (--timer < 0) {
+            saveProgress();
+            if (--remainingSeconds < 0) {
                 clearInterval(timerInterval);
                 alert('时间到，系统已自动提交考卷。');
                 finishQuiz(false);
@@ -932,6 +1053,7 @@
         let wrong = 0;
         let answeredCount = 0;
         let score = 0;
+        const wrongIds = [];
         const reviewListEl = document.getElementById('review-list');
         reviewListEl.innerHTML = '';
 
@@ -945,6 +1067,7 @@
                 score += getQuestionScore(q);
             } else {
                 wrong++;
+                wrongIds.push(q.id);
             }
             if (!isAnswered) return;
             answeredCount++;
@@ -976,7 +1099,8 @@
         document.getElementById('wrong-count').innerText = wrong;
         document.getElementById('answered-count').innerText = answeredCount;
 
-        await saveExamRecord(score, correct, wrong, answeredCount);
+        clearProgress();
+        await saveExamRecord(score, correct, wrong, answeredCount, wrongIds);
     }
 
     function buildReviewItem(q, index, userAnsArr, userAnsStr, isCorrect) {
@@ -1028,7 +1152,7 @@
         return itemDiv;
     }
 
-    async function saveExamRecord(score, correct, wrong, answeredCount) {
+    async function saveExamRecord(score, correct, wrong, answeredCount, wrongIds = []) {
         if (!currentUser || mode !== 'exam') return;
         try {
             await apiRequest('save-record', {
@@ -1040,11 +1164,107 @@
                     correct,
                     wrong,
                     answeredCount,
-                    totalQuestions: activeQuestions.length
+                    totalQuestions: activeQuestions.length,
+                    questionIds: activeQuestions.map(q => q.id),
+                    userAnswers,
+                    wrongIds
                 }
             });
         } catch (err) {
             console.error('成绩保存失败:', err);
+        }
+    }
+
+    function progressKey(targetMode = mode, chapter = document.getElementById('chapter-select')?.value || 'ALL') {
+        if (!currentUser) return '';
+        const scope = targetMode === 'exam' || targetMode === 'wrong' || targetMode === 'paper' ? 'ALL' : chapter;
+        return `${STORAGE_PREFIX}progress:${currentUser.username}:${targetMode}:${scope}`;
+    }
+
+    function saveProgress() {
+        if (!currentUser || activeQuestions.length === 0) return;
+        const data = {
+            mode,
+            questionIds: activeQuestions.map(q => q.id),
+            currentIndex,
+            userAnswers,
+            paperConfig,
+            remainingSeconds,
+            savedAt: new Date().toISOString()
+        };
+        localStorage.setItem(progressKey(), JSON.stringify(data));
+    }
+
+    function loadProgress(targetMode, chapter) {
+        const raw = localStorage.getItem(progressKey(targetMode, chapter));
+        if (!raw) return null;
+        try {
+            return JSON.parse(raw);
+        } catch (err) {
+            return null;
+        }
+    }
+
+    function restoreProgress(data) {
+        mode = data.mode || mode;
+        activeQuestions = (data.questionIds || []).map(id => allQuestions.find(q => q.id === id)).filter(Boolean);
+        currentIndex = Math.min(Number(data.currentIndex || 0), Math.max(activeQuestions.length - 1, 0));
+        userAnswers = data.userAnswers || {};
+        paperConfig = data.paperConfig || paperConfig;
+        remainingSeconds = Number(data.remainingSeconds || 0);
+        document.getElementById('timer-box').classList.toggle('hidden', mode !== 'exam');
+        document.getElementById('submit-exam-btn').classList.toggle('hidden', mode !== 'exam');
+        document.getElementById('pause-exam-btn').classList.toggle('hidden', mode !== 'exam');
+    }
+
+    function clearProgress(targetMode = mode, chapter = document.getElementById('chapter-select')?.value || 'ALL') {
+        if (!currentUser) return;
+        localStorage.removeItem(progressKey(targetMode, chapter));
+    }
+
+    async function loadRecords() {
+        const data = await apiRequest('records');
+        return data.records || [];
+    }
+
+    async function loadMessages() {
+        if (!currentUser) return;
+        const list = document.getElementById('message-list');
+        list.innerHTML = '<div class="text-gray-400">留言加载中...</div>';
+        try {
+            const data = await apiRequest('messages');
+            const messages = data.messages || [];
+            if (messages.length === 0) {
+                list.innerHTML = '<div class="text-gray-400">暂无留言。</div>';
+                return;
+            }
+            list.innerHTML = messages.map(item => `
+                <div class="border border-gray-100 rounded-lg p-3 bg-gray-50">
+                    <div class="text-xs text-gray-400 mb-2">${formatDate(item.createdAt)}</div>
+                    <div class="text-gray-800 whitespace-pre-wrap">${escapeHtml(item.content)}</div>
+                    <div class="mt-3 rounded-lg p-2 ${item.reply ? 'bg-blue-50 text-blue-800' : 'bg-white text-gray-400'} whitespace-pre-wrap">
+                        ${item.reply ? escapeHtml(item.reply) : '管理员尚未回复'}
+                    </div>
+                </div>
+            `).join('');
+        } catch (err) {
+            list.innerHTML = `<div class="text-red-500">${escapeHtml(err.message || '留言加载失败')}</div>`;
+        }
+    }
+
+    async function postMessage() {
+        const textarea = document.getElementById('message-content');
+        const content = textarea.value.trim();
+        if (!content) {
+            alert('请输入留言内容。');
+            return;
+        }
+        try {
+            await apiRequest('post-message', { method: 'POST', body: { content } });
+            textarea.value = '';
+            await loadMessages();
+        } catch (err) {
+            alert(err.message || '留言提交失败。');
         }
     }
 
@@ -1071,6 +1291,11 @@
     function formatScore(value) {
         const num = Number(value || 0);
         return Number.isInteger(num) ? String(num) : num.toFixed(1);
+    }
+
+    function formatDate(value) {
+        if (!value) return '';
+        return new Date(value).toLocaleString('zh-CN', { hour12: false });
     }
 
     function escapeHtml(value) {

@@ -23,9 +23,15 @@ export async function onRequest(context) {
         if (request.method === 'GET' && action === 'questions') return await getQuestions(request, env);
         if (request.method === 'GET' && action === 'settings') return await getSettings(request, env);
         if (request.method === 'POST' && action === 'save-settings') return await saveSettings(request, env);
+        if (request.method === 'POST' && action === 'change-password') return await changePassword(request, env);
         if (request.method === 'GET' && action === 'users') return await listUsers(request, env);
+        if (request.method === 'POST' && action === 'reset-password') return await resetPassword(request, env);
         if (request.method === 'POST' && action === 'delete-user') return await deleteUser(request, env);
+        if (request.method === 'GET' && action === 'records') return await listRecords(request, env);
         if (request.method === 'POST' && action === 'save-record') return await saveRecord(request, env);
+        if (request.method === 'GET' && action === 'messages') return await listMessages(request, env);
+        if (request.method === 'POST' && action === 'post-message') return await postMessage(request, env);
+        if (request.method === 'POST' && action === 'reply-message') return await replyMessage(request, env);
     } catch (error) {
         return json({ error: error.message || '服务器处理失败' }, error.status || 500);
     }
@@ -132,6 +138,26 @@ async function saveSettings(request, env) {
     return json({ success: true, settings });
 }
 
+async function changePassword(request, env) {
+    const user = await requireUser(request, env);
+    const body = await request.json();
+    const oldPassword = String(body.oldPassword || '');
+    const newPassword = String(body.newPassword || '');
+    if (!oldPassword || !newPassword) return json({ error: '请输入原密码和新密码' }, 400);
+    if (newPassword.length < 6) return json({ error: '新密码至少 6 位' }, 400);
+
+    const users = await getUsers(env);
+    const current = users[user.username];
+    if (!await verifyPassword(current, oldPassword)) return json({ error: '原密码不正确' }, 400);
+    current.salt = crypto.randomUUID();
+    current.passwordHash = await hashPassword(newPassword, current.salt);
+    current.passwordChangedAt = new Date().toISOString();
+    delete current.password;
+    users[user.username] = current;
+    await putUsers(env, users);
+    return json({ success: true });
+}
+
 async function listUsers(request, env) {
     await requireAdmin(request, env);
     const users = Object.values(await getUsers(env))
@@ -154,7 +180,34 @@ async function deleteUser(request, env) {
     delete users[username];
     await putUsers(env, users);
     await env.EXAM_KV.delete(`records:${username}`);
+    await env.EXAM_KV.delete(`messages:${username}`);
     return json({ success: true });
+}
+
+async function resetPassword(request, env) {
+    const admin = await requireAdmin(request, env);
+    const body = await request.json();
+    const username = cleanUsername(body.username);
+    if (!username) return json({ error: '缺少用户名' }, 400);
+    if (username === admin.username) return json({ error: '当前管理员请使用修改密码功能' }, 400);
+
+    const users = await getUsers(env);
+    const user = users[username];
+    if (!user || user.deletedAt) return json({ error: '账号不存在' }, 404);
+    const password = defaultPassword();
+    user.salt = crypto.randomUUID();
+    user.passwordHash = await hashPassword(password, user.salt);
+    user.passwordResetAt = new Date().toISOString();
+    delete user.password;
+    users[username] = user;
+    await putUsers(env, users);
+    return json({ success: true, password });
+}
+
+async function listRecords(request, env) {
+    const user = await requireUser(request, env);
+    const records = await env.EXAM_KV.get(`records:${user.username}`, 'json') || [];
+    return json({ records: records.map(publicRecord) });
 }
 
 async function saveRecord(request, env) {
@@ -170,10 +223,70 @@ async function saveRecord(request, env) {
         wrong: Number(body.wrong || 0),
         answeredCount: Number(body.answeredCount || 0),
         totalQuestions: Number(body.totalQuestions || 0),
+        questionIds: Array.isArray(body.questionIds) ? body.questionIds.map(String).slice(0, 500) : [],
+        userAnswers: body.userAnswers && typeof body.userAnswers === 'object' ? body.userAnswers : {},
+        wrongIds: Array.isArray(body.wrongIds) ? body.wrongIds.map(String).slice(0, 500) : [],
         createdAt: new Date().toISOString()
     });
     await env.EXAM_KV.put(key, JSON.stringify(records.slice(0, 20)));
     return json({ success: true });
+}
+
+async function listMessages(request, env) {
+    const user = await requireUser(request, env);
+    if (user.role === 'admin') {
+        const username = cleanUsername(new URL(request.url).searchParams.get('username'));
+        if (username) return json({ messages: await getUserMessages(env, username) });
+        const users = Object.values(await getUsers(env)).filter(item => !item.deletedAt && item.role !== 'admin');
+        const threads = [];
+        for (const item of users) {
+            const messages = await getUserMessages(env, item.username);
+            if (messages.length > 0) {
+                threads.push({ user: publicUser(item), messages, latestAt: messages[0]?.createdAt || '' });
+            }
+        }
+        threads.sort((a, b) => String(b.latestAt).localeCompare(String(a.latestAt)));
+        return json({ threads });
+    }
+    return json({ messages: await getUserMessages(env, user.username) });
+}
+
+async function postMessage(request, env) {
+    const user = await requireUser(request, env);
+    const body = await request.json();
+    const content = String(body.content || '').trim();
+    if (!content) return json({ error: '请输入留言内容' }, 400);
+    if (content.length > 1000) return json({ error: '留言不能超过 1000 字' }, 400);
+
+    const messages = await getUserMessages(env, user.username);
+    messages.unshift({
+        id: crypto.randomUUID(),
+        content,
+        reply: '',
+        createdAt: new Date().toISOString(),
+        repliedAt: ''
+    });
+    await putUserMessages(env, user.username, messages);
+    return json({ success: true, messages });
+}
+
+async function replyMessage(request, env) {
+    await requireAdmin(request, env);
+    const body = await request.json();
+    const username = cleanUsername(body.username);
+    const id = String(body.id || '');
+    const reply = String(body.reply || '').trim();
+    if (!username || !id) return json({ error: '缺少留言信息' }, 400);
+    if (!reply) return json({ error: '请输入回复内容' }, 400);
+    if (reply.length > 1000) return json({ error: '回复不能超过 1000 字' }, 400);
+
+    const messages = await getUserMessages(env, username);
+    const item = messages.find(message => message.id === id);
+    if (!item) return json({ error: '留言不存在' }, 404);
+    item.reply = reply;
+    item.repliedAt = new Date().toISOString();
+    await putUserMessages(env, username, messages);
+    return json({ success: true, messages });
 }
 
 async function createSession(env, user) {
@@ -211,6 +324,14 @@ async function requireUser(request, env, required = true) {
     return user;
 }
 
+async function verifyPassword(user, password) {
+    if (!user) return false;
+    if (user.salt && user.passwordHash) return user.passwordHash === await hashPassword(password, user.salt);
+    if (user.passwordHash) return user.passwordHash === await sha256(password);
+    if (user.password) return user.password === password;
+    return false;
+}
+
 async function getUsers(env) {
     return await env.EXAM_KV.get('users', 'json') || {};
 }
@@ -228,6 +349,22 @@ function publicUser(user) {
     };
 }
 
+function publicRecord(record) {
+    return {
+        score: Number(record.score || 0),
+        totalScore: Number(record.totalScore || 0),
+        passScore: Number(record.passScore || 0),
+        correct: Number(record.correct || 0),
+        wrong: Number(record.wrong || 0),
+        answeredCount: Number(record.answeredCount || 0),
+        totalQuestions: Number(record.totalQuestions || 0),
+        questionIds: Array.isArray(record.questionIds) ? record.questionIds : [],
+        userAnswers: record.userAnswers && typeof record.userAnswers === 'object' ? record.userAnswers : {},
+        wrongIds: Array.isArray(record.wrongIds) ? record.wrongIds : [],
+        createdAt: record.createdAt || ''
+    };
+}
+
 function normalizeSettings(settings) {
     return {
         examCount: clampNumber(settings?.examCount, 1, 500, 200),
@@ -235,10 +372,29 @@ function normalizeSettings(settings) {
         totalScore: clampNumber(settings?.totalScore, 1, 1000, 100),
         passScore: clampNumber(settings?.passScore, 1, 1000, 60),
         combos: settings?.combos && typeof settings.combos === 'object' ? settings.combos : {},
+        percentCombos: settings?.percentCombos && typeof settings.percentCombos === 'object' ? settings.percentCombos : {},
         typeScores: settings?.typeScores && typeof settings.typeScores === 'object'
             ? settings.typeScores
             : { '单选': 0.5, '多选': 0.5, '判断': 0.5 }
     };
+}
+
+async function getUserMessages(env, username) {
+    return await env.EXAM_KV.get(`messages:${username}`, 'json') || [];
+}
+
+async function putUserMessages(env, username, messages) {
+    await env.EXAM_KV.put(`messages:${username}`, JSON.stringify(messages.slice(0, 100)));
+}
+
+function defaultPassword() {
+    const date = new Intl.DateTimeFormat('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(new Date()).replace(/\D/g, '');
+    return `zzxf${date}`;
 }
 
 function clampNumber(value, min, max, fallback) {
