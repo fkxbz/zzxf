@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>消防设施操作员模拟考试系统</title>
+    <meta name="description" content="中级消防证模拟练习考试也可联系管理员更换题库">
+    <meta property="og:title" content="中级消控证模拟考试系统">
+    <meta property="og:description" content="中级消防证模拟练习考试也可联系管理员更换题库">
+    <meta property="og:image" content="./1.jpg">
+    <meta property="og:type" content="website">
     <link rel="icon" href="./favicon.svg" type="image/svg+xml">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -22,14 +27,27 @@
     <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
         <div>
             <h1 class="text-2xl font-bold text-blue-700 md:text-3xl tracking-tight">🧯中级消控证模拟考试系统</h1>
-            <p class="text-sm text-gray-500 mt-2">📌 基于Codex制作,⚡ Cloudflare  提供极致响应。需要调整权重与分值请与管理员联系</p>
+            <p class="text-sm text-gray-500 mt-2">📌 基于Codex制作,⚡ Cloudflare 提供极致响应。需要调整权重与分值请与管理员联系 一键转发到微信、及朋友圈。</p>
         </div>
-        <div id="user-bar" class="hidden bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm shadow-sm">
-            <div class="text-gray-500">当前用户</div>
-            <div class="flex items-center gap-3">
-                <span id="current-user-name" class="font-semibold text-gray-800"></span>
-                <a id="admin-link" href="./admin.html" class="hidden text-emerald-600 hover:text-emerald-700 font-medium">管理后台</a>
-                <button id="logout-btn" class="text-blue-600 hover:text-blue-700 font-medium">退出</button>
+        <div class="w-full md:w-[330px] space-y-3">
+            <div id="share-card" class="bg-white border border-gray-200 rounded-lg px-3 py-3 text-sm shadow-sm">
+                <div class="flex gap-3">
+                    <img src="./1.jpg" alt="中级消控证模拟考试系统" class="h-14 w-14 rounded-md object-cover border border-gray-100 bg-gray-50">
+                    <div class="min-w-0 flex-1">
+                        <div class="font-semibold text-gray-900 leading-tight">一键转发到微信、及朋友圈</div>
+                        <p id="share-copy" class="mt-1 text-xs text-gray-500 leading-relaxed">中级消防证模拟练习考试也可联系管理员更换题库</p>
+                    </div>
+                </div>
+                <button id="share-btn" class="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition" type="button">生成链接并转发</button>
+                <p id="share-status" class="hidden mt-2 text-xs rounded-md px-2 py-1"></p>
+            </div>
+            <div id="user-bar" class="hidden bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm shadow-sm">
+                <div class="text-gray-500">当前用户</div>
+                <div class="flex items-center gap-3">
+                    <span id="current-user-name" class="font-semibold text-gray-800"></span>
+                    <a id="admin-link" href="./admin.html" class="hidden text-emerald-600 hover:text-emerald-700 font-medium">管理后台</a>
+                    <button id="logout-btn" class="text-blue-600 hover:text-blue-700 font-medium">退出</button>
+                </div>
             </div>
         </div>
     </header>
@@ -42,9 +60,10 @@
                     <p class="text-sm text-gray-500 mt-1">请先登录后使用考试系统。</p>
                 </div>
 
-                <div class="grid grid-cols-2 gap-2 bg-gray-100 rounded-lg p-1">
+                <div class="grid grid-cols-3 gap-2 bg-gray-100 rounded-lg p-1">
                     <button id="login-tab" class="auth-tab bg-white text-blue-700 shadow-sm rounded-md py-2 text-sm font-semibold">登录</button>
                     <button id="register-tab" class="auth-tab text-gray-600 rounded-md py-2 text-sm font-semibold">免费注册</button>
+                    <button id="reset-tab" class="auth-tab text-gray-600 rounded-md py-2 text-sm font-semibold">密码重置</button>
                 </div>
 
                 <form id="auth-form" class="space-y-4">
@@ -52,7 +71,7 @@
                         <label class="block text-sm font-medium text-gray-600 mb-2" for="auth-username">用户名</label>
                         <input id="auth-username" autocomplete="username" class="w-full border border-gray-200 rounded-lg p-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="请输入用户名">
                     </div>
-                    <div>
+                    <div id="password-row">
                         <label class="block text-sm font-medium text-gray-600 mb-2" for="auth-password">密码</label>
                         <input id="auth-password" type="password" autocomplete="current-password" class="w-full border border-gray-200 rounded-lg p-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="请输入密码">
                     </div>
@@ -241,7 +260,10 @@
             <div class="grid gap-0 md:grid-cols-[1fr_320px]">
                 <div class="bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 md:p-6 space-y-4">
                     <div class="flex items-center justify-between gap-3 border-b border-emerald-100 pb-3">
-                        <h2 class="text-lg font-bold text-gray-900">感谢支持，请给管理员留言</h2>
+                        <div>
+                            <h2 class="text-lg font-bold text-gray-900">感谢支持，请给管理员留言</h2>
+                            <p class="mt-1 text-xs font-medium text-red-600">仅管理员能看到您的留言。</p>
+                        </div>
                         <button id="refresh-message-btn" class="text-sm text-blue-600 font-medium">刷新</button>
                     </div>
                     <textarea id="message-content" rows="3" class="w-full border border-gray-200 rounded-lg p-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="给管理员留言"></textarea>
@@ -352,15 +374,48 @@
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
+        bindShareEvents();
         bindAuthEvents();
         bindSetupEvents();
         await restoreSession();
         if (currentUser) await loadQuestionBank();
     });
 
+    function bindShareEvents() {
+        document.getElementById('share-btn').addEventListener('click', shareExamLink);
+    }
+
+    async function shareExamLink() {
+        const shareUrl = new URL(window.location.href);
+        shareUrl.hash = '';
+        const title = '中级消控证模拟考试系统';
+        const text = '中级消防证模拟练习考试也可联系管理员更换题库';
+        const message = `${title}\n${text}\n${shareUrl.toString()}`;
+
+        try {
+            if (navigator.share) {
+                await navigator.share({ title, text, url: shareUrl.toString() });
+                showShareStatus('已生成链接，请选择微信或朋友圈转发。', 'success');
+                return;
+            }
+            await navigator.clipboard.writeText(message);
+            showShareStatus('链接和转发文案已复制，可粘贴到微信或朋友圈。', 'success');
+        } catch (err) {
+            showShareStatus('请手动复制当前网页地址发送到微信或朋友圈。', 'error');
+        }
+    }
+
+    function showShareStatus(text, type) {
+        const el = document.getElementById('share-status');
+        el.innerText = text;
+        el.className = `mt-2 text-xs rounded-md px-2 py-1 ${type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`;
+        el.classList.remove('hidden');
+    }
+
     function bindAuthEvents() {
         document.getElementById('login-tab').addEventListener('click', () => switchAuthMode('login'));
         document.getElementById('register-tab').addEventListener('click', () => switchAuthMode('register'));
+        document.getElementById('reset-tab').addEventListener('click', () => switchAuthMode('reset'));
         document.getElementById('auth-form').addEventListener('submit', handleAuthSubmit);
         document.getElementById('logout-btn').addEventListener('click', logout);
     }
@@ -423,16 +478,19 @@
     function switchAuthMode(nextMode) {
         authMode = nextMode;
         const isRegister = authMode === 'register';
-        document.getElementById('register-extra').classList.toggle('hidden', !isRegister);
-        document.getElementById('auth-submit-btn').innerText = isRegister ? '注册并登录' : '登录';
+        const isReset = authMode === 'reset';
+        document.getElementById('register-extra').classList.toggle('hidden', !(isRegister || isReset));
+        document.getElementById('password-row').classList.toggle('hidden', isReset);
+        document.getElementById('auth-submit-btn').innerText = isReset ? '提交重置申请' : (isRegister ? '注册并登录' : '登录');
         document.getElementById('auth-password').autocomplete = isRegister ? 'new-password' : 'current-password';
+        document.querySelector('label[for="auth-display-name"]').innerText = isReset ? '昵称' : '昵称';
+        document.getElementById('auth-display-name').placeholder = isReset ? '请输入注册时填写的昵称' : '用于成绩记录显示';
 
-        document.getElementById('login-tab').className = isRegister
-            ? 'auth-tab text-gray-600 rounded-md py-2 text-sm font-semibold'
-            : 'auth-tab bg-white text-blue-700 shadow-sm rounded-md py-2 text-sm font-semibold';
-        document.getElementById('register-tab').className = isRegister
-            ? 'auth-tab bg-white text-blue-700 shadow-sm rounded-md py-2 text-sm font-semibold'
-            : 'auth-tab text-gray-600 rounded-md py-2 text-sm font-semibold';
+        ['login', 'register', 'reset'].forEach(tab => {
+            document.getElementById(`${tab}-tab`).className = authMode === tab
+                ? 'auth-tab bg-white text-blue-700 shadow-sm rounded-md py-2 text-sm font-semibold'
+                : 'auth-tab text-gray-600 rounded-md py-2 text-sm font-semibold';
+        });
         showAuthMessage('', '');
     }
 
@@ -441,6 +499,24 @@
         const username = document.getElementById('auth-username').value.trim();
         const password = document.getElementById('auth-password').value;
         const displayName = document.getElementById('auth-display-name').value.trim() || username;
+
+        if (authMode === 'reset') {
+            if (!username || !displayName) {
+                showAuthMessage('请输入账号和昵称。', 'error');
+                return;
+            }
+            try {
+                const data = await apiRequest('request-password-reset', {
+                    method: 'POST',
+                    body: { username, displayName }
+                });
+                document.getElementById('auth-form').reset();
+                showAuthMessage(data.message || '重置申请已提交，请等待管理员审核。', 'success');
+            } catch (err) {
+                showAuthMessage(err.message || '申请提交失败。', 'error');
+            }
+            return;
+        }
 
         if (!username || !password) {
             showAuthMessage('请输入用户名和密码。', 'error');

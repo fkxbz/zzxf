@@ -18,6 +18,7 @@ export async function onRequest(context) {
     try {
         if (request.method === 'POST' && action === 'register') return await register(request, env);
         if (request.method === 'POST' && action === 'login') return await login(request, env);
+        if (request.method === 'POST' && action === 'request-password-reset') return await requestPasswordReset(request, env);
         if (request.method === 'POST' && action === 'logout') return await logout(request, env);
         if (request.method === 'GET' && action === 'me') return await me(request, env);
         if (request.method === 'GET' && action === 'questions') return await getQuestions(request, env);
@@ -25,6 +26,8 @@ export async function onRequest(context) {
         if (request.method === 'POST' && action === 'save-settings') return await saveSettings(request, env);
         if (request.method === 'POST' && action === 'change-password') return await changePassword(request, env);
         if (request.method === 'GET' && action === 'users') return await listUsers(request, env);
+        if (request.method === 'GET' && action === 'reset-requests') return await listResetRequests(request, env);
+        if (request.method === 'POST' && action === 'handle-reset-request') return await handleResetRequest(request, env);
         if (request.method === 'POST' && action === 'reset-password') return await resetPassword(request, env);
         if (request.method === 'POST' && action === 'delete-user') return await deleteUser(request, env);
         if (request.method === 'GET' && action === 'records') return await listRecords(request, env);
@@ -97,15 +100,51 @@ async function login(request, env) {
 
     if (!ok) return json({ error: '用户名或密码不正确' }, 401);
 
+    let changed = false;
     if (!user.salt || user.password || user.passwordHash === await sha256(password)) {
         user.salt = crypto.randomUUID();
         user.passwordHash = await hashPassword(password, user.salt);
         delete user.password;
-        users[username] = user;
-        await putUsers(env, users);
+        changed = true;
     }
+    user.lastLoginAt = new Date().toISOString();
+    user.loginCount = Number(user.loginCount || 0) + 1;
+    users[username] = user;
+    if (changed || true) await putUsers(env, users);
 
     return createSession(env, user);
+}
+
+async function requestPasswordReset(request, env) {
+    const body = await request.json();
+    const username = cleanUsername(body.username);
+    const displayName = String(body.displayName || '').trim();
+    if (!username || !displayName) return json({ error: '请输入账号和昵称' }, 400);
+
+    const users = await getUsers(env);
+    const user = users[username];
+    if (!user || user.deletedAt || user.role === 'admin') {
+        return json({ error: '账号或昵称不匹配' }, 400);
+    }
+    if ((user.displayName || user.username).trim() !== displayName) {
+        return json({ error: '账号或昵称不匹配' }, 400);
+    }
+
+    const requests = await getResetRequests(env);
+    const pending = requests.find(item => item.username === username && item.status === 'pending');
+    if (pending) return json({ success: true, message: '重置申请已提交，请等待管理员审核。' });
+
+    requests.unshift({
+        id: crypto.randomUUID(),
+        username,
+        displayName,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        handledAt: '',
+        handledBy: ''
+    });
+    await putResetRequests(env, requests);
+    return json({ success: true, message: '重置申请已提交，请等待管理员审核。' });
 }
 
 async function logout(request, env) {
@@ -162,9 +201,56 @@ async function listUsers(request, env) {
     await requireAdmin(request, env);
     const users = Object.values(await getUsers(env))
         .filter(user => !user.deletedAt)
-        .map(publicUser)
         .sort((a, b) => a.username.localeCompare(b.username));
-    return json({ users });
+    const result = [];
+    for (const user of users) {
+        const item = publicUser(user);
+        item.examSummary = user.role === 'admin'
+            ? { total: 0, bestScore: 0, latestScore: 0, latestAt: '', passed: 0 }
+            : await getExamSummary(env, user.username);
+        result.push(item);
+    }
+    return json({ users: result });
+}
+
+async function listResetRequests(request, env) {
+    await requireAdmin(request, env);
+    const requests = await getResetRequests(env);
+    return json({ requests });
+}
+
+async function handleResetRequest(request, env) {
+    const admin = await requireAdmin(request, env);
+    const body = await request.json();
+    const id = String(body.id || '');
+    const decision = String(body.decision || '');
+    if (!id || !['approve', 'reject'].includes(decision)) return json({ error: '缺少审核信息' }, 400);
+
+    const requests = await getResetRequests(env);
+    const item = requests.find(requestItem => requestItem.id === id);
+    if (!item) return json({ error: '申请不存在' }, 404);
+    if (item.status !== 'pending') return json({ error: '该申请已处理' }, 400);
+
+    item.status = decision === 'approve' ? 'approved' : 'rejected';
+    item.handledAt = new Date().toISOString();
+    item.handledBy = admin.username;
+
+    let password = '';
+    if (decision === 'approve') {
+        const users = await getUsers(env);
+        const user = users[item.username];
+        if (!user || user.deletedAt) return json({ error: '账号不存在' }, 404);
+        password = defaultPassword();
+        user.salt = crypto.randomUUID();
+        user.passwordHash = await hashPassword(password, user.salt);
+        user.passwordResetAt = item.handledAt;
+        delete user.password;
+        users[item.username] = user;
+        await putUsers(env, users);
+    }
+
+    await putResetRequests(env, requests);
+    return json({ success: true, password, request: item });
 }
 
 async function deleteUser(request, env) {
@@ -345,7 +431,10 @@ function publicUser(user) {
         username: user.username,
         displayName: user.displayName || user.username,
         role: user.role || 'user',
-        createdAt: user.createdAt || ''
+        createdAt: user.createdAt || '',
+        lastLoginAt: user.lastLoginAt || '',
+        loginCount: Number(user.loginCount || 0),
+        passwordResetAt: user.passwordResetAt || ''
     };
 }
 
@@ -395,6 +484,27 @@ function defaultPassword() {
         day: '2-digit'
     }).format(new Date()).replace(/\D/g, '');
     return `zzxf${date}`;
+}
+
+async function getResetRequests(env) {
+    return await env.EXAM_KV.get('password-reset-requests', 'json') || [];
+}
+
+async function putResetRequests(env, requests) {
+    await env.EXAM_KV.put('password-reset-requests', JSON.stringify(requests.slice(0, 100)));
+}
+
+async function getExamSummary(env, username) {
+    const records = await env.EXAM_KV.get(`records:${username}`, 'json') || [];
+    if (records.length === 0) return { total: 0, bestScore: 0, latestScore: 0, latestAt: '', passed: 0 };
+    const scores = records.map(record => Number(record.score || 0));
+    return {
+        total: records.length,
+        bestScore: Math.max(...scores),
+        latestScore: Number(records[0]?.score || 0),
+        latestAt: records[0]?.createdAt || '',
+        passed: records.filter(record => Number(record.score || 0) >= Number(record.passScore || 0)).length
+    };
 }
 
 function clampNumber(value, min, max, fallback) {

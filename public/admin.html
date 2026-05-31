@@ -117,8 +117,12 @@
             <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-4 mb-4">
                     <h2 class="text-lg font-bold text-gray-900">注册学员账号管理</h2>
-                    <button id="refresh-users-btn" class="text-sm font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">刷新用户列表</button>
+                    <div class="flex gap-3">
+                        <button id="refresh-reset-requests-btn" class="text-sm font-medium text-red-600 hover:text-red-700">刷新重置申请</button>
+                        <button id="refresh-users-btn" class="text-sm font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">刷新用户列表</button>
+                    </div>
                 </div>
+                <div id="reset-requests-box" class="mb-5 rounded-xl border border-red-100 bg-red-50 p-4 text-sm"></div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse text-sm">
                         <thead>
@@ -127,6 +131,9 @@
                                 <th class="pb-3">学员姓名</th>
                                 <th class="pb-3">身份角色</th>
                                 <th class="pb-3">注册时间</th>
+                                <th class="pb-3">最后登录</th>
+                                <th class="pb-3 text-right">登录次数</th>
+                                <th class="pb-3">模拟考试成绩</th>
                                 <th class="pb-3 text-right">操作行为</th>
                             </tr>
                         </thead>
@@ -168,6 +175,7 @@
         document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
         document.getElementById('reset-btn').addEventListener('click', resetWeights);
         document.getElementById('refresh-users-btn').addEventListener('click', loadUsers);
+        document.getElementById('refresh-reset-requests-btn').addEventListener('click', loadResetRequests);
         document.getElementById('refresh-messages-btn').addEventListener('click', loadMessages);
         document.getElementById('change-password-form').addEventListener('submit', changePassword);
         ['exam-count', 'exam-minutes', 'total-score', 'pass-score'].forEach(id => {
@@ -213,6 +221,7 @@
         document.getElementById('logout-btn').classList.remove('hidden');
         loadSettingsAndBank();
         loadUsers();
+        loadResetRequests();
         loadMessages();
     }
 
@@ -526,15 +535,16 @@ async function loadSettingsAndBank() {
 
     async function loadUsers() {
         const body = document.getElementById('users-body');
-        body.innerHTML = '<tr><td class="py-4 text-center text-gray-400" colspan="5">加载用户列表中...</td></tr>';
+        body.innerHTML = '<tr><td class="py-4 text-center text-gray-400" colspan="8">加载用户列表中...</td></tr>';
         try {
             const data = await apiRequest('users');
             body.innerHTML = '';
             if (!data.users || data.users.length === 0) {
-                body.innerHTML = '<tr><td class="py-4 text-center text-gray-400" colspan="5">暂无普通注册用户账号</td></tr>';
+                body.innerHTML = '<tr><td class="py-4 text-center text-gray-400" colspan="8">暂无普通注册用户账号</td></tr>';
                 return;
             }
             data.users.forEach(user => {
+                const summary = user.examSummary || {};
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="py-3 font-medium text-gray-900">${escapeHtml(user.username)}</td>
@@ -543,6 +553,9 @@ async function loadSettingsAndBank() {
                         <span class="px-2 py-1 text-xs rounded font-semibold ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}">${user.role === 'admin' ? '管理员' : '普通学员'}</span>
                     </td>
                     <td class="py-3 text-gray-400 text-xs">${formatDate(user.createdAt)}</td>
+                    <td class="py-3 text-gray-500 text-xs">${formatDate(user.lastLoginAt) || '未登录'}</td>
+                    <td class="py-3 text-right text-gray-700 font-semibold">${user.loginCount || 0}</td>
+                    <td class="py-3 text-xs text-gray-600">${formatExamSummary(summary)}</td>
                     <td class="py-3 text-right">
                         <button data-username="${escapeHtml(user.username)}" class="reset-password-btn text-blue-600 hover:text-blue-900 font-medium disabled:opacity-30 mr-3" ${user.role === 'admin' ? 'disabled' : ''}>重置密码</button>
                         <button data-username="${escapeHtml(user.username)}" class="delete-user-btn text-red-600 hover:text-red-900 font-medium disabled:opacity-30" ${user.role === 'admin' ? 'disabled' : ''}>删除</button>
@@ -557,7 +570,54 @@ async function loadSettingsAndBank() {
                 btn.addEventListener('click', deleteUser);
             });
         } catch (err) {
-            body.innerHTML = `<tr><td class="py-4 text-center text-red-500" colspan="5">${escapeHtml(err.message || '账号加载失败')}</td></tr>`;
+            body.innerHTML = `<tr><td class="py-4 text-center text-red-500" colspan="8">${escapeHtml(err.message || '账号加载失败')}</td></tr>`;
+        }
+    }
+
+    async function loadResetRequests() {
+        const box = document.getElementById('reset-requests-box');
+        box.innerHTML = '<div class="text-gray-400">加载密码重置申请中...</div>';
+        try {
+            const data = await apiRequest('reset-requests');
+            const requests = (data.requests || []).filter(item => item.status === 'pending');
+            if (requests.length === 0) {
+                box.innerHTML = '<div class="text-gray-500">暂无待审核的密码重置申请。</div>';
+                return;
+            }
+            box.innerHTML = requests.map(item => `
+                <div class="flex flex-col gap-3 border-b border-red-100 py-3 last:border-b-0 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <div class="font-semibold text-gray-900">${escapeHtml(item.displayName)}（${escapeHtml(item.username)}）</div>
+                        <div class="text-xs text-gray-500">申请时间：${formatDate(item.createdAt)}</div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button data-id="${escapeHtml(item.id)}" data-decision="approve" class="handle-reset-btn rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700">同意并重置</button>
+                        <button data-id="${escapeHtml(item.id)}" data-decision="reject" class="handle-reset-btn rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50">拒绝</button>
+                    </div>
+                </div>
+            `).join('');
+            document.querySelectorAll('.handle-reset-btn').forEach(btn => btn.addEventListener('click', handleResetRequest));
+        } catch (err) {
+            box.innerHTML = `<div class="text-red-500">${escapeHtml(err.message || '密码重置申请加载失败')}</div>`;
+        }
+    }
+
+    async function handleResetRequest(event) {
+        const btn = event.currentTarget;
+        try {
+            const data = await apiRequest('handle-reset-request', {
+                method: 'POST',
+                body: { id: btn.dataset.id, decision: btn.dataset.decision }
+            });
+            if (btn.dataset.decision === 'approve') {
+                alert(`已同意并重置密码。新密码：${data.password}`);
+            } else {
+                alert('已拒绝该申请。');
+            }
+            await loadResetRequests();
+            await loadUsers();
+        } catch (err) {
+            alert(err.message || '审核失败。');
         }
     }
 
@@ -661,6 +721,11 @@ async function loadSettingsAndBank() {
     function formatDate(value) {
         if (!value) return '';
         return new Date(value).toLocaleString('zh-CN', { hour12: false });
+    }
+
+    function formatExamSummary(summary) {
+        if (!summary || !summary.total) return '暂无模拟考试';
+        return `次数 ${summary.total}｜最高 ${formatScore(summary.bestScore)}｜最近 ${formatScore(summary.latestScore)}｜通过 ${summary.passed}`;
     }
 
     function escapeHtml(value) {
