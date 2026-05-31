@@ -1,8 +1,9 @@
 import { QUESTIONS } from './data/questions-data.js';
 
 const ADMIN_USERNAME = 'admin';
-const ADMIN_PASSWORD = 'Admin@123456';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
+const LOGIN_MAX_FAILURES = 5;
+const LOGIN_LOCK_SECONDS = 60 * 60;
 
 export async function onRequest(context) {
     const { request, env } = context;
@@ -45,13 +46,17 @@ export async function onRequest(context) {
 async function ensureAdminUser(env) {
     const users = await getUsers(env);
     if (users[ADMIN_USERNAME]) return;
+    const initialPassword = String(env.ADMIN_INITIAL_PASSWORD || '');
+    if (!initialPassword) {
+        throw new HttpError('ADMIN_INITIAL_PASSWORD 未配置，无法创建管理员账号', 500);
+    }
     const salt = crypto.randomUUID();
     users[ADMIN_USERNAME] = {
         username: ADMIN_USERNAME,
         displayName: '系统管理员',
         role: 'admin',
         salt,
-        passwordHash: await hashPassword(ADMIN_PASSWORD, salt),
+        passwordHash: await hashPassword(initialPassword, salt),
         createdAt: new Date().toISOString()
     };
     await putUsers(env, users);
@@ -85,10 +90,18 @@ async function login(request, env) {
     const body = await request.json();
     const username = cleanUsername(body.username);
     const password = String(body.password || '');
+    const clientIp = getClientIp(request);
+    const lock = await getLoginLock(env, username, clientIp);
+    if (lock) {
+        return json({ error: '登录失败次数过多，请 60 分钟后再试' }, 429);
+    }
+
     const users = await getUsers(env);
     const user = users[username];
-    if (!user || user.deletedAt) return json({ error: '用户名或密码不正确' }, 401);
-
+    if (!user || user.deletedAt) {
+        await recordFailedLogin(env, username, clientIp);
+        return json({ error: '用户名或密码不正确' }, 401);
+    }
     let ok = false;
     if (user.salt && user.passwordHash) {
         ok = user.passwordHash === await hashPassword(password, user.salt);
@@ -98,7 +111,10 @@ async function login(request, env) {
         ok = user.password === password;
     }
 
-    if (!ok) return json({ error: '用户名或密码不正确' }, 401);
+    if (!ok) {
+        await recordFailedLogin(env, username, clientIp);
+        return json({ error: '用户名或密码不正确' }, 401);
+    }
 
     let changed = false;
     if (!user.salt || user.password || user.passwordHash === await sha256(password)) {
@@ -111,6 +127,7 @@ async function login(request, env) {
     user.loginCount = Number(user.loginCount || 0) + 1;
     users[username] = user;
     if (changed || true) await putUsers(env, users);
+    await clearFailedLogin(env, username, clientIp);
 
     return createSession(env, user);
 }
@@ -520,6 +537,52 @@ function cleanUsername(value) {
 function getBearerToken(request) {
     const header = request.headers.get('Authorization') || '';
     return header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+}
+
+function getClientIp(request) {
+    return request.headers.get('CF-Connecting-IP')
+        || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
+        || request.headers.get('X-Real-IP')
+        || '';
+}
+
+async function getLoginAttemptKeys(username, clientIp) {
+    const keys = [];
+    if (username) keys.push(`login-fail:user:${username}`);
+    if (clientIp) keys.push(`login-fail:ip:${await sha256(clientIp)}`);
+    return keys;
+}
+
+async function getLoginLock(env, username, clientIp) {
+    const now = Date.now();
+    const keys = await getLoginAttemptKeys(username, clientIp);
+    for (const key of keys) {
+        const attempt = await env.EXAM_KV.get(key, 'json');
+        if (attempt?.lockedUntil && Number(attempt.lockedUntil) > now) return attempt;
+    }
+    return null;
+}
+
+async function recordFailedLogin(env, username, clientIp) {
+    const now = Date.now();
+    const keys = await getLoginAttemptKeys(username, clientIp);
+    for (const key of keys) {
+        const current = await env.EXAM_KV.get(key, 'json') || {};
+        const count = current.lockedUntil && Number(current.lockedUntil) > now
+            ? LOGIN_MAX_FAILURES
+            : Number(current.count || 0) + 1;
+        const attempt = {
+            count,
+            updatedAt: new Date(now).toISOString(),
+            lockedUntil: count >= LOGIN_MAX_FAILURES ? now + LOGIN_LOCK_SECONDS * 1000 : 0
+        };
+        await env.EXAM_KV.put(key, JSON.stringify(attempt), { expirationTtl: LOGIN_LOCK_SECONDS });
+    }
+}
+
+async function clearFailedLogin(env, username, clientIp) {
+    const keys = await getLoginAttemptKeys(username, clientIp);
+    await Promise.all(keys.map(key => env.EXAM_KV.delete(key)));
 }
 
 async function hashPassword(password, salt) {

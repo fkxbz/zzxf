@@ -4,12 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>消防设施操作员模拟考试系统</title>
-    <meta name="description" content="中级消防证模拟练习考试也可联系管理员更换题库">
+    <meta name="description" content="考消防中控证模拟练习，需要调整权重与分值请与管理员联系。">
     <meta property="og:title" content="中级消控证模拟考试系统">
-    <meta property="og:description" content="中级消防证模拟练习考试也可联系管理员更换题库">
-    <meta property="og:image" content="./1.jpg">
+    <meta property="og:description" content="考消防中控证模拟练习，需要调整权重与分值请与管理员联系。">
+    <meta property="og:url" content="https://zzxf.phman.uk/">
+    <meta property="og:image" content="https://zzxf.phman.uk/share-preview.png">
+    <meta property="og:image:secure_url" content="https://zzxf.phman.uk/share-preview.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="中级消控证模拟考试系统">
+    <meta name="twitter:description" content="考消防中控证模拟练习，需要调整权重与分值请与管理员联系。">
+    <meta name="twitter:image" content="https://zzxf.phman.uk/share-preview.png">
+    <link rel="canonical" href="https://zzxf.phman.uk/">
     <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="./favicon.ico" sizes="any">
+    <link rel="shortcut icon" href="./favicon.ico">
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+    <link rel="image_src" href="https://zzxf.phman.uk/share-preview.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
@@ -27,27 +40,16 @@
     <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
         <div>
             <h1 class="text-2xl font-bold text-blue-700 md:text-3xl tracking-tight">🧯中级消控证模拟考试系统</h1>
-            <p class="text-sm text-gray-500 mt-2">📌 基于Codex制作,⚡ Cloudflare 提供极致响应。需要调整权重与分值请与管理员联系 一键转发到微信、及朋友圈。</p>
+            <p class="text-sm text-gray-500 mt-2">
+                <a id="header-share-link" href="#" class="text-blue-500 hover:text-blue-600 hover:underline">📌 基于Open AI制作,⚡ Cloudflare 极致响应。需要调整考试内容请与管理员联系 点这里一键转发到微信、及朋友圈</a>
+            </p>
         </div>
-        <div class="w-full md:w-[330px] space-y-3">
-            <div id="share-card" class="bg-white border border-gray-200 rounded-lg px-3 py-3 text-sm shadow-sm">
-                <div class="flex gap-3">
-                    <img src="./1.jpg" alt="中级消控证模拟考试系统" class="h-14 w-14 rounded-md object-cover border border-gray-100 bg-gray-50">
-                    <div class="min-w-0 flex-1">
-                        <div class="font-semibold text-gray-900 leading-tight">一键转发到微信、及朋友圈</div>
-                        <p id="share-copy" class="mt-1 text-xs text-gray-500 leading-relaxed">中级消防证模拟练习考试也可联系管理员更换题库</p>
-                    </div>
-                </div>
-                <button id="share-btn" class="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition" type="button">生成链接并转发</button>
-                <p id="share-status" class="hidden mt-2 text-xs rounded-md px-2 py-1"></p>
-            </div>
-            <div id="user-bar" class="hidden bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm shadow-sm">
-                <div class="text-gray-500">当前用户</div>
-                <div class="flex items-center gap-3">
-                    <span id="current-user-name" class="font-semibold text-gray-800"></span>
-                    <a id="admin-link" href="./admin.html" class="hidden text-emerald-600 hover:text-emerald-700 font-medium">管理后台</a>
-                    <button id="logout-btn" class="text-blue-600 hover:text-blue-700 font-medium">退出</button>
-                </div>
+        <div id="user-bar" class="hidden bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm shadow-sm">
+            <div class="text-gray-500">当前用户</div>
+            <div class="flex items-center gap-3">
+                <span id="current-user-name" class="font-semibold text-gray-800"></span>
+                <a id="admin-link" href="./admin.html" class="hidden text-emerald-600 hover:text-emerald-700 font-medium">管理后台</a>
+                <button id="logout-btn" class="text-blue-600 hover:text-blue-700 font-medium">退出</button>
             </div>
         </div>
     </header>
@@ -341,6 +343,7 @@
 <script>
     const DEFAULT_TYPE_SCORES = { '单选': 0.5, '多选': 0.5, '判断': 0.5 };
     const STORAGE_PREFIX = 'exam-system:';
+    const PUBLIC_SITE_URL = 'https://zzxf.phman.uk/';
 
     let allQuestions = [];
     let activeQuestions = [];
@@ -382,34 +385,27 @@
     });
 
     function bindShareEvents() {
-        document.getElementById('share-btn').addEventListener('click', shareExamLink);
+        document.getElementById('header-share-link').addEventListener('click', shareExamLink);
     }
 
-    async function shareExamLink() {
-        const shareUrl = new URL(window.location.href);
-        shareUrl.hash = '';
+    async function shareExamLink(event) {
+        event.preventDefault();
+        const shareUrl = new URL(PUBLIC_SITE_URL);
         const title = '中级消控证模拟考试系统';
-        const text = '中级消防证模拟练习考试也可联系管理员更换题库';
+        const text = '考消防中控证模拟练习，需要调整权重与分值请与管理员联系。';
         const message = `${title}\n${text}\n${shareUrl.toString()}`;
 
         try {
             if (navigator.share) {
                 await navigator.share({ title, text, url: shareUrl.toString() });
-                showShareStatus('已生成链接，请选择微信或朋友圈转发。', 'success');
+                alert('已生成链接，请选择微信或朋友圈转发。');
                 return;
             }
             await navigator.clipboard.writeText(message);
-            showShareStatus('链接和转发文案已复制，可粘贴到微信或朋友圈。', 'success');
+            alert('链接和转发文案已复制，可粘贴到微信或朋友圈。');
         } catch (err) {
-            showShareStatus('请手动复制当前网页地址发送到微信或朋友圈。', 'error');
+            alert('请手动复制当前网页地址发送到微信或朋友圈。');
         }
-    }
-
-    function showShareStatus(text, type) {
-        const el = document.getElementById('share-status');
-        el.innerText = text;
-        el.className = `mt-2 text-xs rounded-md px-2 py-1 ${type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`;
-        el.classList.remove('hidden');
     }
 
     function bindAuthEvents() {
