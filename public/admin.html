@@ -132,6 +132,9 @@
                                 <th class="pb-3">身份角色</th>
                                 <th class="pb-3">注册时间</th>
                                 <th class="pb-3">最后登录</th>
+                                <th class="pb-3">最后登录IP</th>
+                                <th class="pb-3">IP属地</th>
+                                <th class="pb-3">客户端信息</th>
                                 <th class="pb-3 text-right">登录次数</th>
                                 <th class="pb-3">模拟考试成绩</th>
                                 <th class="pb-3 text-right">操作行为</th>
@@ -535,12 +538,12 @@ async function loadSettingsAndBank() {
 
     async function loadUsers() {
         const body = document.getElementById('users-body');
-        body.innerHTML = '<tr><td class="py-4 text-center text-gray-400" colspan="8">加载用户列表中...</td></tr>';
+        body.innerHTML = '<tr><td class="py-4 text-center text-gray-400" colspan="11">加载用户列表中...</td></tr>';
         try {
             const data = await apiRequest('users');
             body.innerHTML = '';
             if (!data.users || data.users.length === 0) {
-                body.innerHTML = '<tr><td class="py-4 text-center text-gray-400" colspan="8">暂无普通注册用户账号</td></tr>';
+                body.innerHTML = '<tr><td class="py-4 text-center text-gray-400" colspan="11">暂无普通注册用户账号</td></tr>';
                 return;
             }
             data.users.forEach(user => {
@@ -554,6 +557,9 @@ async function loadSettingsAndBank() {
                     </td>
                     <td class="py-3 text-gray-400 text-xs">${formatDate(user.createdAt)}</td>
                     <td class="py-3 text-gray-500 text-xs">${formatDate(user.lastLoginAt) || '未登录'}</td>
+                    <td class="py-3 text-gray-500 text-xs">${escapeHtml(user.lastLoginIp || '-')}</td>
+                    <td class="py-3 text-gray-500 text-xs">${escapeHtml(user.lastLoginLocation || '-')}</td>
+                    <td class="py-3 text-gray-500 text-xs max-w-[220px]" title="${escapeHtml(user.lastLoginClient || '')}">${escapeHtml(shortText(user.lastLoginClient || '-', 42))}</td>
                     <td class="py-3 text-right text-gray-700 font-semibold">${user.loginCount || 0}</td>
                     <td class="py-3 text-xs text-gray-600">${formatExamSummary(summary)}</td>
                     <td class="py-3 text-right">
@@ -570,7 +576,7 @@ async function loadSettingsAndBank() {
                 btn.addEventListener('click', deleteUser);
             });
         } catch (err) {
-            body.innerHTML = `<tr><td class="py-4 text-center text-red-500" colspan="8">${escapeHtml(err.message || '账号加载失败')}</td></tr>`;
+            body.innerHTML = `<tr><td class="py-4 text-center text-red-500" colspan="11">${escapeHtml(err.message || '账号加载失败')}</td></tr>`;
         }
     }
 
@@ -726,6 +732,11 @@ async function loadSettingsAndBank() {
     function formatExamSummary(summary) {
         if (!summary || !summary.total) return '暂无模拟考试';
         return `次数 ${summary.total}｜最高 ${formatScore(summary.bestScore)}｜最近 ${formatScore(summary.latestScore)}｜通过 ${summary.passed}`;
+    }
+
+    function shortText(value, maxLength) {
+        const text = String(value || '');
+        return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
     }
 
     function escapeHtml(value) {

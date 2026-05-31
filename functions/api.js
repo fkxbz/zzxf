@@ -125,6 +125,9 @@ async function login(request, env) {
     }
     user.lastLoginAt = new Date().toISOString();
     user.loginCount = Number(user.loginCount || 0) + 1;
+    user.lastLoginIp = clientIp;
+    user.lastLoginLocation = getClientLocation(request);
+    user.lastLoginClient = getClientInfo(request);
     users[username] = user;
     if (changed || true) await putUsers(env, users);
     await clearFailedLogin(env, username, clientIp);
@@ -219,9 +222,11 @@ async function listUsers(request, env) {
     const users = Object.values(await getUsers(env))
         .filter(user => !user.deletedAt)
         .sort((a, b) => {
+            const aLoginAt = Date.parse(a.lastLoginAt || '') || 0;
+            const bLoginAt = Date.parse(b.lastLoginAt || '') || 0;
             const aCreatedAt = Date.parse(a.createdAt || '') || 0;
             const bCreatedAt = Date.parse(b.createdAt || '') || 0;
-            return bCreatedAt - aCreatedAt || a.username.localeCompare(b.username);
+            return bLoginAt - aLoginAt || bCreatedAt - aCreatedAt || a.username.localeCompare(b.username);
         });
     const result = [];
     for (const user of users) {
@@ -455,6 +460,9 @@ function publicUser(user) {
         createdAt: user.createdAt || '',
         lastLoginAt: user.lastLoginAt || '',
         loginCount: Number(user.loginCount || 0),
+        lastLoginIp: user.lastLoginIp || '',
+        lastLoginLocation: user.lastLoginLocation || '',
+        lastLoginClient: user.lastLoginClient || '',
         passwordResetAt: user.passwordResetAt || ''
     };
 }
@@ -548,6 +556,16 @@ function getClientIp(request) {
         || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
         || request.headers.get('X-Real-IP')
         || '';
+}
+
+function getClientLocation(request) {
+    const cf = request.cf || {};
+    const parts = [cf.country, cf.region, cf.city].filter(Boolean);
+    return parts.join(' / ') || request.headers.get('CF-IPCountry') || '';
+}
+
+function getClientInfo(request) {
+    return String(request.headers.get('User-Agent') || '').slice(0, 300);
 }
 
 async function getLoginAttemptKeys(username, clientIp) {
