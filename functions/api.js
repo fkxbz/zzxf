@@ -218,7 +218,11 @@ async function listUsers(request, env) {
     await requireAdmin(request, env);
     const users = Object.values(await getUsers(env))
         .filter(user => !user.deletedAt)
-        .sort((a, b) => a.username.localeCompare(b.username));
+        .sort((a, b) => {
+            const aCreatedAt = Date.parse(a.createdAt || '') || 0;
+            const bCreatedAt = Date.parse(b.createdAt || '') || 0;
+            return bCreatedAt - aCreatedAt || a.username.localeCompare(b.username);
+        });
     const result = [];
     for (const user of users) {
         const item = publicUser(user);
