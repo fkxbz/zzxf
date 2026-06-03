@@ -1053,7 +1053,7 @@
         return shuffle(paperQuestions).sort((a, b) => {
             const orderA = typeOrder[a.type] || 99;
             const orderB = typeOrder[b.type] || 99;
-            return orderA - orderB;
+            return orderA - orderB || String(a.id || '').localeCompare(String(b.id || ''), 'zh-CN', { numeric: true });
         });
     }
 
