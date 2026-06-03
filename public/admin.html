@@ -116,7 +116,10 @@
 
             <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-4 mb-4">
-                    <h2 class="text-lg font-bold text-gray-900">注册学员账号管理</h2>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h2 class="text-lg font-bold text-gray-900">注册学员账号管理</h2>
+                        <span id="normal-user-count" class="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">已注册普通人员 0 人</span>
+                    </div>
                     <div class="flex gap-3">
                         <button id="refresh-reset-requests-btn" class="text-sm font-medium text-red-600 hover:text-red-700">刷新重置申请</button>
                         <button id="refresh-users-btn" class="text-sm font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">刷新用户列表</button>
@@ -159,6 +162,9 @@
 <script>
     const TOKEN_KEY = 'exam-system:token';
     const DEFAULT_TYPE_SCORES = { '单选': 0.5, '多选': 0.5, '判断': 0.5 };
+    const TYPE_ORDER = ['单选', '多选', '判断'];
+    const TYPE_RATIO = { '单选': 10, '多选': 4, '判断': 6 };
+    const TYPE_TOTALS = { '单选': 100, '多选': 40, '判断': 60 };
 
     let currentUser = null;
     let allQuestions = [];
@@ -349,7 +355,7 @@ async function loadSettingsAndBank() {
     function renderWeightGrid() {
         const counts = {};
         allQuestions.forEach(q => {
-            const key = `${q.chapter}||${q.type}`;
+            const key = comboKey(q.chapter, q.type);
             counts[key] = (counts[key] || 0) + 1;
         });
 
@@ -364,11 +370,13 @@ async function loadSettingsAndBank() {
 
         uniqueCombos.sort((a, b) => a.chapter.localeCompare(b.chapter) || a.type.localeCompare(b.type));
 
+        const defaultCombos = buildDefaultExamCombos();
+
         uniqueCombos.forEach(combo => {
-            const comboKey = `${combo.chapter}||${combo.type}`;
-            const stock = counts[comboKey] || 0;
-            const savedWeight = settings.combos[comboKey] !== undefined ? settings.combos[comboKey] : stock;
-            const savedPercent = settings.percentCombos?.[comboKey] !== undefined ? settings.percentCombos[comboKey] : 0;
+            const comboKeyValue = comboKey(combo.chapter, combo.type);
+            const stock = counts[comboKeyValue] || 0;
+            const savedWeight = readComboValue(settings.combos, combo.chapter, combo.type, defaultCombos[comboKeyValue] ?? 0);
+            const savedPercent = readComboValue(settings.percentCombos, combo.chapter, combo.type, 0);
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
@@ -376,12 +384,12 @@ async function loadSettingsAndBank() {
                 <td class="py-2.5 px-3 text-gray-500">${escapeHtml(combo.type)}</td>
                 <td class="py-2.5 px-3 text-right text-gray-900 font-semibold">${stock}</td>
                 <td class="py-2.5 px-3 text-right">
-                    <input type="number" min="0" max="10000" value="${savedWeight}" data-key="${comboKey}" class="weight-input w-20 text-right border border-gray-200 rounded p-1 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                    <input type="number" min="0" max="10000" value="${savedWeight}" data-key="${comboKeyValue}" class="weight-input w-20 text-right border border-gray-200 rounded p-1 focus:outline-none focus:ring-1 focus:ring-blue-500">
                 </td>
                 <td class="py-2.5 px-3 text-right">
-                    <input type="number" min="0" max="100" step="0.1" value="${savedPercent}" data-key="${comboKey}" class="percent-input w-20 text-right border border-gray-200 rounded p-1 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                    <input type="number" min="0" max="100" step="0.1" value="${savedPercent}" data-key="${comboKeyValue}" class="percent-input w-20 text-right border border-gray-200 rounded p-1 focus:outline-none focus:ring-1 focus:ring-blue-500">
                 </td>
-                <td class="py-2.5 px-3 text-right text-blue-600 font-bold calc-count" data-key="${comboKey}" data-stock="${stock}">0</td>
+                <td class="py-2.5 px-3 text-right text-blue-600 font-bold calc-count" data-key="${comboKeyValue}" data-stock="${stock}">0</td>
             `;
             body.appendChild(tr);
         });
@@ -428,7 +436,7 @@ async function loadSettingsAndBank() {
             return {
                 cell,
                 key,
-                type: key.split('||')[1],
+                type: key.split('|||')[1],
                 stock: parseInt(cell.dataset.stock) || 0,
                 percent: percentInput ? clamp(parseFloat(percentInput.value) || 0, 0, 100) : 0,
                 weight: weightInput ? clamp(parseInt(weightInput.value) || 0, 0, 10000) : 0,
@@ -462,6 +470,111 @@ async function loadSettingsAndBank() {
         const percentEl = document.getElementById('percent-total');
         percentEl.innerText = `${formatScore(percentTotal)}%`;
         percentEl.className = percentTotal > 100 ? 'font-bold text-red-600' : 'font-bold text-gray-900';
+    }
+
+    function comboKey(chapter, type) {
+        return `${chapter}|||${type}`;
+    }
+
+    function legacyComboKey(chapter, type) {
+        return `${chapter}||${type}`;
+    }
+
+    function readComboValue(source, chapter, type, fallback) {
+        if (!source || typeof source !== 'object') return fallback;
+        const key = comboKey(chapter, type);
+        const legacyKey = legacyComboKey(chapter, type);
+        if (source[key] !== undefined) return source[key];
+        if (source[legacyKey] !== undefined) return source[legacyKey];
+        return fallback;
+    }
+
+    function buildDefaultExamCombos() {
+        const chapterTotals = {};
+        allQuestions.forEach(q => {
+            chapterTotals[q.chapter] = (chapterTotals[q.chapter] || 0) + 1;
+        });
+        const chapters = Object.keys(chapterTotals);
+        const firstChapter = chapters.find(chapter => chapter.startsWith('第一章'));
+        const basicChapters = chapters.filter(chapter => /^第[二三四五六七八九]章/.test(chapter));
+        const skillChapters = chapters.filter(chapter => chapter.startsWith('中级技能'));
+        const totalTarget = clamp(parseInt(document.getElementById('exam-count').value) || settings.examCount || 200, 1, 500);
+        const chapterTargets = {};
+        if (firstChapter) chapterTargets[firstChapter] = Math.round(totalTarget * 0.05);
+        Object.assign(chapterTargets, allocateByStock(basicChapters, Math.round(totalTarget * 0.35), chapterTotals));
+        Object.assign(chapterTargets, allocateByStock(skillChapters, totalTarget - Object.values(chapterTargets).reduce((sum, count) => sum + count, 0), chapterTotals));
+
+        const result = {};
+        Object.entries(chapterTargets).forEach(([chapter, count]) => {
+            const row = allocateTypeCounts(count);
+            TYPE_ORDER.forEach(type => {
+                result[comboKey(chapter, type)] = row[type] || 0;
+            });
+        });
+        rebalanceTypeTotals(result, totalTarget);
+        return result;
+    }
+
+    function allocateByStock(chapters, target, chapterTotals) {
+        const totalStock = chapters.reduce((sum, chapter) => sum + (chapterTotals[chapter] || 0), 0);
+        if (!totalStock || target <= 0) return {};
+        const rows = chapters.map(chapter => {
+            const raw = target * (chapterTotals[chapter] || 0) / totalStock;
+            return { chapter, count: Math.floor(raw), remainder: raw - Math.floor(raw) };
+        });
+        let left = target - rows.reduce((sum, row) => sum + row.count, 0);
+        rows.sort((a, b) => b.remainder - a.remainder || a.chapter.localeCompare(b.chapter, 'zh-CN'));
+        for (let i = 0; i < left; i++) rows[i % rows.length].count++;
+        return Object.fromEntries(rows.map(row => [row.chapter, row.count]));
+    }
+
+    function allocateTypeCounts(total) {
+        const ratioTotal = TYPE_ORDER.reduce((sum, type) => sum + TYPE_RATIO[type], 0);
+        const rows = TYPE_ORDER.map(type => {
+            const raw = total * TYPE_RATIO[type] / ratioTotal;
+            return { type, count: Math.floor(raw), remainder: raw - Math.floor(raw) };
+        });
+        let left = total - rows.reduce((sum, row) => sum + row.count, 0);
+        rows.sort((a, b) => b.remainder - a.remainder || TYPE_ORDER.indexOf(a.type) - TYPE_ORDER.indexOf(b.type));
+        for (let i = 0; i < left; i++) rows[i % rows.length].count++;
+        return Object.fromEntries(rows.map(row => [row.type, row.count]));
+    }
+
+    function rebalanceTypeTotals(combos, totalTarget) {
+        const targets = Object.fromEntries(TYPE_ORDER.map(type => [type, Math.round(totalTarget * TYPE_RATIO[type] / 20)]));
+        if (totalTarget === 200) Object.assign(targets, TYPE_TOTALS);
+        const getTypeSum = type => Object.entries(combos)
+            .filter(([key]) => key.endsWith(`|||${type}`))
+            .reduce((sum, [, count]) => sum + count, 0);
+        const rowCost = chapter => {
+            const total = TYPE_ORDER.reduce((sum, type) => sum + (combos[comboKey(chapter, type)] || 0), 0);
+            if (!total) return 0;
+            return TYPE_ORDER.reduce((sum, type) => {
+                const expected = TYPE_RATIO[type] / 20;
+                return sum + Math.abs(((combos[comboKey(chapter, type)] || 0) / total) - expected);
+            }, 0);
+        };
+        let guard = 0;
+        while (guard++ < 1000) {
+            const overType = TYPE_ORDER.find(type => getTypeSum(type) > targets[type]);
+            const underType = TYPE_ORDER.find(type => getTypeSum(type) < targets[type]);
+            if (!overType || !underType) break;
+            let best = null;
+            Object.keys(combos).forEach(key => {
+                if (!key.endsWith(`|||${overType}`) || combos[key] <= 0) return;
+                const chapter = key.slice(0, -(`|||${overType}`).length);
+                const before = rowCost(chapter);
+                combos[key]--;
+                combos[comboKey(chapter, underType)] = (combos[comboKey(chapter, underType)] || 0) + 1;
+                const delta = rowCost(chapter) - before;
+                combos[key]++;
+                combos[comboKey(chapter, underType)]--;
+                if (!best || delta < best.delta) best = { chapter, key, delta };
+            });
+            if (!best) break;
+            combos[best.key]--;
+            combos[comboKey(best.chapter, underType)] = (combos[comboKey(best.chapter, underType)] || 0) + 1;
+        }
     }
 
     function rebalanceRows(rows, target) {
@@ -524,13 +637,13 @@ async function loadSettingsAndBank() {
     }
 
     function resetWeights() {
-        if (!confirm('确定要恢复到默认权重设置（按库存分配）吗？')) return;
+        if (!confirm('确定要恢复到新的默认模拟考试规则吗？')) return;
+        const defaultCombos = buildDefaultExamCombos();
         document.querySelectorAll('.calc-count').forEach(cell => {
             const key = cell.dataset.key;
-            const stock = cell.dataset.stock;
             const input = document.querySelector(`.weight-input[data-key="${cssEscape(key)}"]`);
             const percentInput = document.querySelector(`.percent-input[data-key="${cssEscape(key)}"]`);
-            if (input) input.value = stock;
+            if (input) input.value = defaultCombos[key] || 0;
             if (percentInput) percentInput.value = 0;
         });
         refreshSummary();
@@ -542,11 +655,14 @@ async function loadSettingsAndBank() {
         try {
             const data = await apiRequest('users');
             body.innerHTML = '';
-            if (!data.users || data.users.length === 0) {
+            const users = data.users || [];
+            const normalCount = users.filter(user => user.role !== 'admin').length;
+            document.getElementById('normal-user-count').innerText = `已注册普通人员 ${normalCount} 人`;
+            if (users.length === 0) {
                 body.innerHTML = '<tr><td class="py-4 text-center text-gray-400" colspan="11">暂无普通注册用户账号</td></tr>';
                 return;
             }
-            data.users.forEach(user => {
+            users.forEach(user => {
                 const summary = user.examSummary || {};
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -640,10 +756,11 @@ async function loadSettingsAndBank() {
 
     async function deleteUser(event) {
         const username = event.currentTarget.dataset.username;
-        if (!confirm(`确定删除账号 ${username} 吗？`)) return;
+        if (!confirm(`确定删除账号 ${username} 吗？如果该账号有留言，也会一并删除。`)) return;
         try {
             await apiRequest('delete-user', { method: 'POST', body: { username } });
             await loadUsers();
+            await loadMessages();
         } catch (err) {
             alert(err.message || '删除失败。');
         }
@@ -685,8 +802,9 @@ async function loadSettingsAndBank() {
                         <div class="text-gray-800 whitespace-pre-wrap">${escapeHtml(message.content)}</div>
                         <div class="mt-3 text-blue-700 bg-blue-50 rounded-lg p-2 whitespace-pre-wrap">${message.reply ? escapeHtml(message.reply) : '尚未回复'}</div>
                         <div class="mt-3 flex gap-2">
-                            <input data-user="${escapeHtml(thread.user.username)}" data-id="${escapeHtml(message.id)}" class="reply-input flex-1 border border-gray-200 rounded-lg px-3 py-2" placeholder="输入管理员回复" value="${escapeHtml(message.reply || '')}">
+                            <input data-user="${escapeHtml(thread.user.username)}" data-id="${escapeHtml(message.id)}" class="reply-input flex-1 border border-gray-200 rounded-lg px-3 py-2" placeholder="输入管理员回复" value="">
                             <button data-user="${escapeHtml(thread.user.username)}" data-id="${escapeHtml(message.id)}" class="reply-btn bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-lg">回复</button>
+                            <button data-user="${escapeHtml(thread.user.username)}" data-id="${escapeHtml(message.id)}" class="delete-message-btn border border-red-200 bg-white px-4 rounded-lg text-red-600 hover:bg-red-50">删除</button>
                         </div>
                     </div>
                 `).join('');
@@ -697,6 +815,7 @@ async function loadSettingsAndBank() {
                 box.appendChild(wrapper);
             });
             document.querySelectorAll('.reply-btn').forEach(btn => btn.addEventListener('click', replyMessage));
+            document.querySelectorAll('.delete-message-btn').forEach(btn => btn.addEventListener('click', deleteMessage));
         } catch (err) {
             box.innerHTML = `<div class="text-center text-red-500 py-6">${escapeHtml(err.message || '留言加载失败')}</div>`;
         }
@@ -711,6 +830,17 @@ async function loadSettingsAndBank() {
             await loadMessages();
         } catch (err) {
             alert(err.message || '回复失败。');
+        }
+    }
+
+    async function deleteMessage(event) {
+        const btn = event.currentTarget;
+        if (!confirm('确定删除这条留言及管理员回复吗？')) return;
+        try {
+            await apiRequest('delete-message', { method: 'POST', body: { username: btn.dataset.user, id: btn.dataset.id } });
+            await loadMessages();
+        } catch (err) {
+            alert(err.message || '删除留言失败。');
         }
     }
 

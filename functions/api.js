@@ -36,6 +36,7 @@ export async function onRequest(context) {
         if (request.method === 'GET' && action === 'messages') return await listMessages(request, env);
         if (request.method === 'POST' && action === 'post-message') return await postMessage(request, env);
         if (request.method === 'POST' && action === 'reply-message') return await replyMessage(request, env);
+        if (request.method === 'POST' && action === 'delete-message') return await deleteMessage(request, env);
     } catch (error) {
         return json({ error: error.message || '服务器处理失败' }, error.status || 500);
     }
@@ -222,11 +223,9 @@ async function listUsers(request, env) {
     const users = Object.values(await getUsers(env))
         .filter(user => !user.deletedAt)
         .sort((a, b) => {
-            const aLoginAt = Date.parse(a.lastLoginAt || '') || 0;
-            const bLoginAt = Date.parse(b.lastLoginAt || '') || 0;
             const aCreatedAt = Date.parse(a.createdAt || '') || 0;
             const bCreatedAt = Date.parse(b.createdAt || '') || 0;
-            return bLoginAt - aLoginAt || bCreatedAt - aCreatedAt || a.username.localeCompare(b.username);
+            return bCreatedAt - aCreatedAt || a.username.localeCompare(b.username);
         });
     const result = [];
     for (const user of users) {
@@ -399,6 +398,20 @@ async function replyMessage(request, env) {
     item.repliedAt = new Date().toISOString();
     await putUserMessages(env, username, messages);
     return json({ success: true, messages });
+}
+
+async function deleteMessage(request, env) {
+    await requireAdmin(request, env);
+    const body = await request.json();
+    const username = cleanUsername(body.username);
+    const id = String(body.id || '');
+    if (!username || !id) return json({ error: '缺少留言信息' }, 400);
+
+    const messages = await getUserMessages(env, username);
+    const nextMessages = messages.filter(message => message.id !== id);
+    if (nextMessages.length === messages.length) return json({ error: '留言不存在' }, 404);
+    await putUserMessages(env, username, nextMessages);
+    return json({ success: true, messages: nextMessages });
 }
 
 async function createSession(env, user) {

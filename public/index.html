@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>消防设施操作员模拟考试系统</title>
-    <meta name="description" content="考消防中控证模拟练习，需要调整权重与分值请与管理员联系。">
+    <meta name="description" content="考消防中控证模拟练习">
     <meta property="og:title" content="中级消控证模拟考试系统">
-    <meta property="og:description" content="考消防中控证模拟练习，需要调整权重与分值请与管理员联系。">
+    <meta property="og:description" content="考消防中控证模拟练习，请大家考试顺利。">
     <meta property="og:url" content="https://zzxf.phman.uk/">
     <meta property="og:image" content="https://zzxf.phman.uk/share-preview.png">
     <meta property="og:image:secure_url" content="https://zzxf.phman.uk/share-preview.png">
@@ -15,7 +15,7 @@
     <meta property="og:type" content="website">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="中级消控证模拟考试系统">
-    <meta name="twitter:description" content="考消防中控证模拟练习，需要调整权重与分值请与管理员联系。">
+    <meta name="twitter:description" content="考消防中控证模拟练习，请大家考试顺利。">
     <meta name="twitter:image" content="https://zzxf.phman.uk/share-preview.png">
     <link rel="canonical" href="https://zzxf.phman.uk/">
     <link rel="icon" href="./favicon.svg" type="image/svg+xml">
@@ -40,7 +40,7 @@
         <div>
             <h1 class="text-2xl font-bold text-blue-700 md:text-3xl tracking-tight">🧯中级消控证模拟考试系统</h1>
             <p class="text-sm text-gray-500 mt-2">
-                <a id="header-share-link" href="#" class="text-blue-500 hover:text-blue-600 hover:underline">📌 基于Open AI制作,⚡ Cloudflare 极致响应。需要调整考试内容请与管理员联系 点这里一键转发到微信、及朋友圈</a>
+                <a id="header-share-link" href="#" class="text-blue-500 hover:text-blue-600 hover:underline">📌基于Open AI制作,⚡Cloudflare极致响应。点这里转发到微信、朋友圈</a>
             </p>
         </div>
         <div id="user-bar" class="hidden bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm shadow-sm">
@@ -341,6 +341,9 @@
 
 <script>
     const DEFAULT_TYPE_SCORES = { '单选': 0.5, '多选': 0.5, '判断': 0.5 };
+    const TYPE_ORDER = ['单选', '多选', '判断'];
+    const TYPE_RATIO = { '单选': 10, '多选': 4, '判断': 6 };
+    const TYPE_TOTALS = { '单选': 100, '多选': 40, '判断': 60 };
     const STORAGE_PREFIX = 'exam-system:';
     const PUBLIC_SITE_URL = 'https://zzxf.phman.uk/';
 
@@ -669,6 +672,19 @@
         return `${chapter}|||${type}`;
     }
 
+    function legacyComboKey(chapter, type) {
+        return `${chapter}||${type}`;
+    }
+
+    function readComboValue(source, chapter, type, fallback) {
+        if (!source || typeof source !== 'object') return fallback;
+        const key = comboKey(chapter, type);
+        const legacyKey = legacyComboKey(chapter, type);
+        if (source[key] !== undefined) return source[key];
+        if (source[legacyKey] !== undefined) return source[legacyKey];
+        return fallback;
+    }
+
     function getComboStats() {
         const map = {};
         allQuestions.forEach(q => {
@@ -686,9 +702,10 @@
 
     function buildDefaultWeights(force = false) {
         const combos = getComboStats();
+        const defaultCombos = buildDefaultExamCombos();
         combos.forEach(item => {
             if (force || weightSettings.combos[item.key] === undefined) {
-                weightSettings.combos[item.key] = item.count;
+                weightSettings.combos[item.key] = defaultCombos[item.key] ?? 0;
             }
         });
         getTypes().forEach(type => {
@@ -703,7 +720,7 @@
     }
 
     function resetWeights() {
-        weightSettings = { combos: {}, typeScores: { ...DEFAULT_TYPE_SCORES } };
+        weightSettings = { combos: {}, percentCombos: {}, typeScores: { ...DEFAULT_TYPE_SCORES } };
         buildDefaultWeights(true);
         renderWeightPanel();
     }
@@ -718,7 +735,7 @@
                 <td class="py-2 pr-3 text-gray-600">${escapeHtml(item.type)}</td>
                 <td class="py-2 pr-3 text-right text-gray-500">${item.count}</td>
                 <td class="py-2 pr-3 text-right">
-                    <input class="weight-input w-20 border border-gray-200 rounded-md px-2 py-1 text-right" type="number" min="0" data-key="${escapeHtml(item.key)}" value="${Number(weightSettings.combos[item.key] || 0)}">
+                    <input class="weight-input w-20 border border-gray-200 rounded-md px-2 py-1 text-right" type="number" min="0" data-key="${escapeHtml(item.key)}" value="${Number(readComboValue(weightSettings.combos, item.chapter, item.type, 0) || 0)}">
                 </td>
                 <td class="py-2 text-right text-gray-700" data-estimate="${escapeHtml(item.key)}">0</td>
             `;
@@ -750,6 +767,94 @@
         document.querySelectorAll('.type-score-input').forEach(input => {
             weightSettings.typeScores[input.dataset.type] = Math.max(0, Number(input.value || 0));
         });
+    }
+
+    function buildDefaultExamCombos() {
+        const chapterTotals = {};
+        allQuestions.forEach(q => {
+            chapterTotals[q.chapter] = (chapterTotals[q.chapter] || 0) + 1;
+        });
+        const chapters = Object.keys(chapterTotals);
+        const firstChapter = chapters.find(chapter => chapter.startsWith('第一章'));
+        const basicChapters = chapters.filter(chapter => /^第[二三四五六七八九]章/.test(chapter));
+        const skillChapters = chapters.filter(chapter => chapter.startsWith('中级技能'));
+        const totalTarget = getExamTargetCount();
+        const chapterTargets = {};
+        if (firstChapter) chapterTargets[firstChapter] = Math.round(totalTarget * 0.05);
+        Object.assign(chapterTargets, allocateByStock(basicChapters, Math.round(totalTarget * 0.35), chapterTotals));
+        Object.assign(chapterTargets, allocateByStock(skillChapters, totalTarget - Object.values(chapterTargets).reduce((sum, count) => sum + count, 0), chapterTotals));
+
+        const result = {};
+        Object.entries(chapterTargets).forEach(([chapter, count]) => {
+            const row = allocateTypeCounts(count);
+            TYPE_ORDER.forEach(type => {
+                result[comboKey(chapter, type)] = row[type] || 0;
+            });
+        });
+        rebalanceTypeTotals(result, totalTarget);
+        return result;
+    }
+
+    function allocateByStock(chapters, target, chapterTotals) {
+        const totalStock = chapters.reduce((sum, chapter) => sum + (chapterTotals[chapter] || 0), 0);
+        if (!totalStock || target <= 0) return {};
+        const rows = chapters.map(chapter => {
+            const raw = target * (chapterTotals[chapter] || 0) / totalStock;
+            return { chapter, count: Math.floor(raw), remainder: raw - Math.floor(raw) };
+        });
+        let left = target - rows.reduce((sum, row) => sum + row.count, 0);
+        rows.sort((a, b) => b.remainder - a.remainder || a.chapter.localeCompare(b.chapter, 'zh-CN'));
+        for (let i = 0; i < left; i++) rows[i % rows.length].count++;
+        return Object.fromEntries(rows.map(row => [row.chapter, row.count]));
+    }
+
+    function allocateTypeCounts(total) {
+        const ratioTotal = TYPE_ORDER.reduce((sum, type) => sum + TYPE_RATIO[type], 0);
+        const rows = TYPE_ORDER.map(type => {
+            const raw = total * TYPE_RATIO[type] / ratioTotal;
+            return { type, count: Math.floor(raw), remainder: raw - Math.floor(raw) };
+        });
+        let left = total - rows.reduce((sum, row) => sum + row.count, 0);
+        rows.sort((a, b) => b.remainder - a.remainder || TYPE_ORDER.indexOf(a.type) - TYPE_ORDER.indexOf(b.type));
+        for (let i = 0; i < left; i++) rows[i % rows.length].count++;
+        return Object.fromEntries(rows.map(row => [row.type, row.count]));
+    }
+
+    function rebalanceTypeTotals(combos, totalTarget) {
+        const targets = Object.fromEntries(TYPE_ORDER.map(type => [type, Math.round(totalTarget * TYPE_RATIO[type] / 20)]));
+        if (totalTarget === 200) Object.assign(targets, TYPE_TOTALS);
+        const getTypeSum = type => Object.entries(combos)
+            .filter(([key]) => key.endsWith(`|||${type}`))
+            .reduce((sum, [, count]) => sum + count, 0);
+        const rowCost = chapter => {
+            const total = TYPE_ORDER.reduce((sum, type) => sum + (combos[comboKey(chapter, type)] || 0), 0);
+            if (!total) return 0;
+            return TYPE_ORDER.reduce((sum, type) => {
+                const expected = TYPE_RATIO[type] / 20;
+                return sum + Math.abs(((combos[comboKey(chapter, type)] || 0) / total) - expected);
+            }, 0);
+        };
+        let guard = 0;
+        while (guard++ < 1000) {
+            const overType = TYPE_ORDER.find(type => getTypeSum(type) > targets[type]);
+            const underType = TYPE_ORDER.find(type => getTypeSum(type) < targets[type]);
+            if (!overType || !underType) break;
+            let best = null;
+            Object.keys(combos).forEach(key => {
+                if (!key.endsWith(`|||${overType}`) || combos[key] <= 0) return;
+                const chapter = key.slice(0, -(`|||${overType}`).length);
+                const before = rowCost(chapter);
+                combos[key]--;
+                combos[comboKey(chapter, underType)] = (combos[comboKey(chapter, underType)] || 0) + 1;
+                const delta = rowCost(chapter) - before;
+                combos[key]++;
+                combos[comboKey(chapter, underType)]--;
+                if (!best || delta < best.delta) best = { chapter, key, delta };
+            });
+            if (!best) break;
+            combos[best.key]--;
+            combos[comboKey(best.chapter, underType)] = (combos[comboKey(best.chapter, underType)] || 0) + 1;
+        }
     }
 
     function getExamTargetCount() {
@@ -788,8 +893,8 @@
         const stats = getComboStats().map(item => ({
             ...item,
             stock: item.count,
-            weight: Math.max(0, Number(weightSettings.combos[item.key] || 0)),
-            percent: Math.max(0, Number(weightSettings.percentCombos?.[item.key] || 0)),
+            weight: Math.max(0, Number(readComboValue(weightSettings.combos, item.chapter, item.type, 0) || 0)),
+            percent: Math.max(0, Number(readComboValue(weightSettings.percentCombos, item.chapter, item.type, 0) || 0)),
             count: 0
         })).filter(item => (item.weight > 0 || item.percent > 0) && item.stock > 0);
         if (stats.length === 0) return [];
