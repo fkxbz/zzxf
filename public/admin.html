@@ -354,9 +354,13 @@ async function loadSettingsAndBank() {
 
     function renderWeightGrid() {
         const counts = {};
+        const chapterMinIds = {};
         allQuestions.forEach(q => {
             const key = comboKey(q.chapter, q.type);
             counts[key] = (counts[key] || 0) + 1;
+            if (!chapterMinIds[q.chapter] || compareQuestionId(q.id, chapterMinIds[q.chapter]) < 0) {
+                chapterMinIds[q.chapter] = q.id;
+            }
         });
 
         const body = document.getElementById('weight-body');
@@ -368,7 +372,10 @@ async function loadSettingsAndBank() {
             if (!exists) uniqueCombos.push({ chapter: q.chapter, type: q.type });
         });
 
-        uniqueCombos.sort((a, b) => a.chapter.localeCompare(b.chapter) || a.type.localeCompare(b.type));
+        uniqueCombos.sort((a, b) => {
+            const chapterSort = compareQuestionId(chapterMinIds[a.chapter], chapterMinIds[b.chapter]);
+            return chapterSort || typeSort(a.type, b.type) || a.chapter.localeCompare(b.chapter, 'zh-CN');
+        });
 
         const defaultCombos = buildDefaultExamCombos();
 
@@ -474,6 +481,15 @@ async function loadSettingsAndBank() {
 
     function comboKey(chapter, type) {
         return `${chapter}|||${type}`;
+    }
+
+    function compareQuestionId(a, b) {
+        return String(a || '').localeCompare(String(b || ''), 'zh-CN', { numeric: true });
+    }
+
+    function typeSort(a, b) {
+        const order = { '单选': 1, '多选': 2, '判断': 3 };
+        return (order[a] || 99) - (order[b] || 99) || String(a || '').localeCompare(String(b || ''), 'zh-CN');
     }
 
     function legacyComboKey(chapter, type) {
