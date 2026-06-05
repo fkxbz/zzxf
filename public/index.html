@@ -282,7 +282,6 @@
                 <div class="flex flex-wrap items-center gap-3">
                     <span>进度: <b id="current-index" class="text-blue-600">1</b> / <b id="total-questions">0</b></span>
                     <span>本题: <b id="q-score" class="text-gray-800">0</b> 分</span>
-                    <span>已得: <b id="live-score" class="text-green-600">0</b> 分</span>
                 </div>
                 <div id="timer-box" class="hidden text-red-500 font-medium bg-red-50 px-3 py-1 rounded-full">剩余: <span id="timer">90:00</span></div>
             </div>
@@ -1069,7 +1068,6 @@
         document.getElementById('q-chapter').innerText = q.chapter;
         document.getElementById('q-stem').innerText = `${currentIndex + 1}. ${q.stem}`;
         document.getElementById('q-score').innerText = formatScore(getQuestionScore(q));
-        updateLiveScore();
 
         const container = document.getElementById('options-container');
         container.innerHTML = '';
@@ -1113,7 +1111,6 @@
                         : item.className.replace('border-blue-500 bg-blue-50', 'border-gray-200');
 
                     saveCurrentAnswer();
-                    updateLiveScore();
 
                     if (mode === 'exam' && q.type !== '多选') {
                         if (autoNextTimeout) clearTimeout(autoNextTimeout);
@@ -1474,14 +1471,6 @@
 
     function getQuestionBaseScore(q) {
         return Number(weightSettings.typeScores[q.type] || DEFAULT_TYPE_SCORES[q.type] || 0.5);
-    }
-
-    function updateLiveScore() {
-        const score = activeQuestions.reduce((sum, q) => {
-            const ans = (userAnswers[q.id] || []).join('');
-            return ans === q.answer ? sum + getQuestionScore(q) : sum;
-        }, 0);
-        document.getElementById('live-score').innerText = formatScore(score);
     }
 
     function shuffle(arr) {
